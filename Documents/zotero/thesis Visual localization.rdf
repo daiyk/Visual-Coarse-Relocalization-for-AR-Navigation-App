@@ -1,0 +1,622 @@
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:vcard="http://nwalsh.com/rdf/vCard#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/"
+ xmlns:link="http://purl.org/rss/1.0/modules/link/"
+ xmlns:prism="http://prismstandard.org/namespaces/1.2/basic/">
+    <rdf:Description rdf:about="urn:isbn:978-1-60558-193-4">
+        <z:itemType>conferencePaper</z:itemType>
+        <dcterms:isPartOf>
+            <bib:Journal>
+                <dc:identifier>ISBN 978-1-60558-193-4</dc:identifier>
+                <dc:title>Proceeding of the 14th ACM SIGKDD international conference on Knowledge discovery and data mining - KDD 08</dc:title>
+                <dc:identifier>DOI 10.1145/1401890.1551565</dc:identifier>
+            </bib:Journal>
+        </dcterms:isPartOf>
+        <dc:publisher>
+            <foaf:Organization>
+                <vcard:adr>
+                    <vcard:Address>
+                       <vcard:locality>Las Vegas, Nevada, USA</vcard:locality>
+                    </vcard:Address>
+                </vcard:adr>
+                <foaf:name>ACM Press</foaf:name>
+            </foaf:Organization>
+        </dc:publisher>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Borgwardt</foaf:surname>
+                        <foaf:givenName>Karsten Michael</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Yan</foaf:surname>
+                        <foaf:givenName>Xifeng</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_2"/>
+        <dc:subject>graph kernel</dc:subject>
+        <dc:title>Graph Mining and Graph Kernels</dc:title>
+        <dc:date>2008</dc:date>
+        <z:language>en</z:language>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>http://dl.acm.org/citation.cfm?doid=1401890.1551565</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:07:23</dcterms:dateSubmitted>
+        <bib:pages>1001</bib:pages>
+        <bib:presentedAt>
+            <bib:Conference>
+               <dc:title>the 14th ACM SIGKDD international conference</dc:title>
+            </bib:Conference>
+        </bib:presentedAt>
+    </rdf:Description>
+    <z:Attachment rdf:about="#item_2">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/2/Borgwardt and Yan - 2008 - Graph Mining and Graph Kernels.pdf"/>
+        <dc:title>Borgwardt and Yan - 2008 - Graph Mining and Graph Kernels.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="https://ieeexplore.ieee.org/document/8664175/">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf rdf:resource="urn:issn:2169-3536"/>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Wang</foaf:surname>
+                        <foaf:givenName>Mi</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Jie</foaf:surname>
+                        <foaf:givenName>Biao</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Bian</foaf:surname>
+                        <foaf:givenName>Weixin</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Ding</foaf:surname>
+                        <foaf:givenName>Xintao</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Zhou</foaf:surname>
+                        <foaf:givenName>Wen</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Wang</foaf:surname>
+                        <foaf:givenName>Zhengdong</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Liu</foaf:surname>
+                        <foaf:givenName>Mingxia</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_4"/>
+        <dc:subject>graph kernel</dc:subject>
+        <dc:title>Graph-Kernel Based Structured Feature Selection for Brain Disease Classification Using Functional Connectivity Networks</dc:title>
+        <dcterms:abstract>Feature selection has been applied to the analysis of complex structured data, such as functional connectivity networks (FCNs) constructed on resting-state functional magnetic resonance imaging (rs-fMRI), for removing redundant/noisy information. Previous studies usually ﬁrst extract topological measures (e.g., clustering coefﬁcients) from FCNs as feature vectors, and then perform vector-based algorithms (e.g., t-test) for feature selection. However, due to the use of vector-based representations, these methods simply ignore important local-to-global structural information of connectivity networks, while such structural information could be used as prior knowledge of networks to improve the learning performance. To this end, we propose a graph kernel-based structured feature selection (gk-SFS) method for brain disease classiﬁcation with connectivity networks. Different from previous studies, our proposed gk-SFS method uses the graph kernel technique to calculate the similarity of networks and thus can explicitly take advantage of the structural information of connectivity networks. Speciﬁcally, we ﬁrst develop a new graph kernel-based Laplacian regularizer in our gk-SFS model to preserve the structural information of connectivity networks. We also employ an l1-norm based sparsity regularizer to select a small number of discriminative features for brain disease analysis (classiﬁcation). The experimental results on both ADNI and ADHD-200 datasets with rs-fMRI data demonstrate that the proposed gk-SFS method can further improve the classiﬁcation performance compared with the state-of-the-art methods.</dcterms:abstract>
+        <dc:date>2019</dc:date>
+        <z:language>en</z:language>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>https://ieeexplore.ieee.org/document/8664175/</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:08:25</dcterms:dateSubmitted>
+        <bib:pages>35001-35011</bib:pages>
+    </bib:Article>
+    <bib:Journal rdf:about="urn:issn:2169-3536">
+        <prism:volume>7</prism:volume>
+        <dc:title>IEEE Access</dc:title>
+        <dc:identifier>DOI 10.1109/ACCESS.2019.2903332</dc:identifier>
+        <dcterms:alternative>IEEE Access</dcterms:alternative>
+        <dc:identifier>ISSN 2169-3536</dc:identifier>
+    </bib:Journal>
+    <z:Attachment rdf:about="#item_4">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/4/Wang et al. - 2019 - Graph-Kernel Based Structured Feature Selection fo.pdf"/>
+        <dc:title>Wang et al. - 2019 - Graph-Kernel Based Structured Feature Selection fo.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="https://linkinghub.elsevier.com/retrieve/pii/S0921889018306092">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf rdf:resource="urn:issn:09218890"/>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Boniardi</foaf:surname>
+                        <foaf:givenName>Federico</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Caselitz</foaf:surname>
+                        <foaf:givenName>Tim</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Kümmerle</foaf:surname>
+                        <foaf:givenName>Rainer</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Burgard</foaf:surname>
+                        <foaf:givenName>Wolfram</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_6"/>
+        <dc:title>A pose graph-based localization system for long-term navigation in CAD floor plans</dc:title>
+        <dcterms:abstract>Accurate localization is an essential technology for flexible automation. Industrial applications require mobile platforms to be precisely localized in complex environments, often subject to continuous changes and reconfiguration. Most of the approaches use precomputed maps both for localization and for interfacing robots with workers and operators. This results in increased deployment time and costs as mapping experts are required to setup the robotic systems in factory facilities. Moreover, such maps need to be updated whenever significant changes in the environment occur in order to be usable within commanding tools. To overcome those limitations, in this work we present a robust and highly accurate method for long-term LiDAR-based indoor localization that uses CAD-based architectural floor plans. The system leverages a combination of graph-based mapping techniques and Bayes filtering to maintain a sparse and up-to-date globally consistent map that represents the latest configuration of the environment. This map is aligned to the CAD drawing using prior constraints and is exploited for relative localization, thus allowing the robot to estimate its current pose with respect to the global reference frame of the floor plan. Furthermore, the map helps in limiting the disturbances caused by structures and clutter not represented in the drawing. Several long-term experiments in changing real-world environments show that our system outperforms common state-of-the-art localization methods in terms of accuracy and robustness while remaining memory and computationally efficient.</dcterms:abstract>
+        <dc:date>02/2019</dc:date>
+        <z:language>en</z:language>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>https://linkinghub.elsevier.com/retrieve/pii/S0921889018306092</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:08:36</dcterms:dateSubmitted>
+        <bib:pages>84-97</bib:pages>
+    </bib:Article>
+    <bib:Journal rdf:about="urn:issn:09218890">
+        <prism:volume>112</prism:volume>
+        <dc:title>Robotics and Autonomous Systems</dc:title>
+        <dc:identifier>DOI 10.1016/j.robot.2018.11.003</dc:identifier>
+        <dcterms:alternative>Robotics and Autonomous Systems</dcterms:alternative>
+        <dc:identifier>ISSN 09218890</dc:identifier>
+    </bib:Journal>
+    <z:Attachment rdf:about="#item_6">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/6/Boniardi et al. - 2019 - A pose graph-based localization system for long-te.pdf"/>
+        <dc:title>Boniardi et al. - 2019 - A pose graph-based localization system for long-te.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="https://linkinghub.elsevier.com/retrieve/pii/S0921889016300574">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf>
+            <bib:Journal>
+                <prism:volume>88</prism:volume>
+                <dc:title>Robotics and Autonomous Systems</dc:title>
+                <dc:identifier>DOI 10.1016/j.robot.2016.11.011</dc:identifier>
+                <dcterms:alternative>Robotics and Autonomous Systems</dcterms:alternative>
+                <dc:identifier>ISSN 09218890</dc:identifier>
+            </bib:Journal>
+        </dcterms:isPartOf>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Krajník</foaf:surname>
+                        <foaf:givenName>Tomáš</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Cristóforis</foaf:surname>
+                        <foaf:givenName>Pablo</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Kusumam</foaf:surname>
+                        <foaf:givenName>Keerthy</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Neubert</foaf:surname>
+                        <foaf:givenName>Peer</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Duckett</foaf:surname>
+                        <foaf:givenName>Tom</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_8"/>
+        <dc:subject>GRIEF</dc:subject>
+        <dc:subject>local descriptor</dc:subject>
+        <dc:title>Image features for visual teach-and-repeat navigation in changing environments</dc:title>
+        <dcterms:abstract>We present an evaluation of standard image features in the context of long-term visual teach-andrepeat navigation of mobile robots, where the environment exhibits significant changes in appearance caused by seasonal weather variations and daily illumination changes. We argue that for long-term autonomous navigation, the viewpoint-, scale- and rotation- invariance of the standard feature extractors is less important than their robustness to the mid- and long-term environment appearance changes. Therefore, we focus our evaluation on the robustness of image registration to variable lighting and naturally-occurring seasonal changes. We combine detection and description components of different image extractors and evaluate their performance on five datasets collected by mobile vehicles in three different outdoor environments over the course of one year. Moreover, we propose a trainable feature descriptor based on a combination of evolutionary algorithms and Binary Robust Independent Elementary Features, which we call GRIEF (Generated BRIEF). In terms of robustness to seasonal changes, the most promising results were achieved by the SpG/CNN and the STAR/GRIEF feature, which was slightly less robust, but faster to calculate.</dcterms:abstract>
+        <dc:date>02/2017</dc:date>
+        <z:language>en</z:language>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>https://linkinghub.elsevier.com/retrieve/pii/S0921889016300574</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:08:48</dcterms:dateSubmitted>
+        <bib:pages>127-141</bib:pages>
+    </bib:Article>
+    <z:Attachment rdf:about="#item_8">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/8/Krajník et al. - 2017 - Image features for visual teach-and-repeat navigat.pdf"/>
+        <dc:title>Krajník et al. - 2017 - Image features for visual teach-and-repeat navigat.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <rdf:Description rdf:about="urn:isbn:978-1-4673-8851-1">
+        <z:itemType>conferencePaper</z:itemType>
+        <dcterms:isPartOf>
+            <bib:Journal>
+                <dc:identifier>ISBN 978-1-4673-8851-1</dc:identifier>
+                <dc:title>2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</dc:title>
+                <dc:identifier>DOI 10.1109/CVPR.2016.491</dc:identifier>
+            </bib:Journal>
+        </dcterms:isPartOf>
+        <dc:publisher>
+            <foaf:Organization>
+                <vcard:adr>
+                    <vcard:Address>
+                       <vcard:locality>Las Vegas, NV, USA</vcard:locality>
+                    </vcard:Address>
+                </vcard:adr>
+                <foaf:name>IEEE</foaf:name>
+            </foaf:Organization>
+        </dc:publisher>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Stumm</foaf:surname>
+                        <foaf:givenName>Elena</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Mei</foaf:surname>
+                        <foaf:givenName>Christopher</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Lacroix</foaf:surname>
+                        <foaf:givenName>Simon</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Nieto</foaf:surname>
+                        <foaf:givenName>Juan</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Hutter</foaf:surname>
+                        <foaf:givenName>Marco</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Siegwart</foaf:surname>
+                        <foaf:givenName>Roland</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_10"/>
+        <dc:subject>graph kernel</dc:subject>
+        <dc:title>Robust Visual Place Recognition with Graph Kernels</dc:title>
+        <dcterms:abstract>A novel method for visual place recognition is introduced and evaluated, demonstrating robustness to perceptual aliasing and observation noise. This is achieved by increasing discrimination through a more structured representation of visual observations. Estimation of observation likelihoods are based on graph kernel formulations, utilizing both the structural and visual information encoded in covisibility graphs. The proposed probabilistic model is able to circumvent the typically difﬁcult and expensive posterior normalization procedure by exploiting the information available in visual observations. Furthermore, the place recognition complexity is independent of the size of the map. Results show improvements over the state-of-theart on a diverse set of both public datasets and novel experiments, highlighting the beneﬁt of the approach.</dcterms:abstract>
+        <dc:date>6/2016</dc:date>
+        <z:language>en</z:language>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+               <rdf:value>http://ieeexplore.ieee.org/document/7780860/</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:08:59</dcterms:dateSubmitted>
+        <bib:pages>4535-4544</bib:pages>
+        <bib:presentedAt>
+            <bib:Conference>
+                <dc:title>2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</dc:title>
+            </bib:Conference>
+        </bib:presentedAt>
+    </rdf:Description>
+    <z:Attachment rdf:about="#item_10">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/10/Stumm et al. - 2016 - Robust Visual Place Recognition with Graph Kernels.pdf"/>
+        <dc:title>Stumm et al. - 2016 - Robust Visual Place Recognition with Graph Kernels.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="https://ieeexplore.ieee.org/document/8281068/">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf rdf:resource="urn:issn:2377-3766,%202377-3774"/>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Gawel</foaf:surname>
+                        <foaf:givenName>Abel</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Don</foaf:surname>
+                        <foaf:givenName>Carlo Del</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Siegwart</foaf:surname>
+                        <foaf:givenName>Roland</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Nieto</foaf:surname>
+                        <foaf:givenName>Juan</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Cadena</foaf:surname>
+                        <foaf:givenName>Cesar</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_12"/>
+        <dc:subject>heterogeneous features/data</dc:subject>
+        <dc:title>X-View: Graph-Based Semantic Multi-View Localization</dc:title>
+        <dcterms:abstract>Global registration of multiview robot data is a challenging task. Appearance-based global localization approaches often fail under drastic view-point changes, as representations have limited view-point invariance. This letter is based on the idea that human-made environments contain rich semantics that can be used to disambiguate global localization. Here, we present X-View, a multiview semantic global localization system. X-View leverages semantic graph descriptor matching for global localization, enabling localization under drastically different view-points. While the approach is general in terms of the semantic input data, we present and evaluate an implementation on visual data. We demonstrate the system in experiments on the publicly available SYNTHIA dataset, on a realistic urban dataset recorded with a simulator, and on real-world StreetView data. Our ﬁndings show that X-View is able to globally localize aerial-to-ground, and groundto-ground robot data of drastically different view-points. Our approach achieves an accuracy of up to 85 % on global localizations in the multiview case, while the benchmarked baseline appearancebased methods reach up to 75 %.</dcterms:abstract>
+        <dc:date>7/2018</dc:date>
+        <z:language>en</z:language>
+        <z:shortTitle>X-View</z:shortTitle>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>https://ieeexplore.ieee.org/document/8281068/</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:09:08</dcterms:dateSubmitted>
+        <bib:pages>1687-1694</bib:pages>
+    </bib:Article>
+    <bib:Journal rdf:about="urn:issn:2377-3766,%202377-3774">
+        <prism:volume>3</prism:volume>
+        <dc:title>IEEE Robotics and Automation Letters</dc:title>
+        <dc:identifier>DOI 10.1109/LRA.2018.2801879</dc:identifier>
+        <prism:number>3</prism:number>
+        <dcterms:alternative>IEEE Robot. Autom. Lett.</dcterms:alternative>
+        <dc:identifier>ISSN 2377-3766, 2377-3774</dc:identifier>
+    </bib:Journal>
+    <z:Attachment rdf:about="#item_12">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/12/Gawel et al. - 2018 - X-View Graph-Based Semantic Multi-View Localizati.pdf"/>
+        <dc:title>Gawel et al. - 2018 - X-View Graph-Based Semantic Multi-View Localizati.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="http://ieeexplore.ieee.org/document/7839213/">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf>
+            <bib:Journal>
+                <prism:volume>2</prism:volume>
+                <dc:title>IEEE Robotics and Automation Letters</dc:title>
+                <dc:identifier>DOI 10.1109/LRA.2017.2662061</dc:identifier>
+                <prism:number>2</prism:number>
+                <dcterms:alternative>IEEE Robot. Autom. Lett.</dcterms:alternative>
+                <dc:identifier>ISSN 2377-3766, 2377-3774</dc:identifier>
+            </bib:Journal>
+        </dcterms:isPartOf>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Han</foaf:surname>
+                        <foaf:givenName>Fei</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Yang</foaf:surname>
+                        <foaf:givenName>Xue</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Deng</foaf:surname>
+                        <foaf:givenName>Yiming</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Rentschler</foaf:surname>
+                        <foaf:givenName>Mark</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Yang</foaf:surname>
+                        <foaf:givenName>Dejun</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Zhang</foaf:surname>
+                        <foaf:givenName>Hao</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_14"/>
+        <dc:subject>heterogeneous features/data</dc:subject>
+        <dc:title>SRAL: Shared Representative Appearance Learning for Long-Term Visual Place Recognition</dc:title>
+        <dcterms:abstract>Place recognition, or loop closure detection, is an essential component to address the problem of visual simultaneous localization and mapping (SLAM). Long-term navigation of robots in outdoor environments introduces new challenges to enable life-long SLAM, including the strong appearance change resulting from vegetation, weather, and illumination variations across various times of the day, different days, months, or even seasons. In this paper, we propose a new shared representative appearance learning (SRAL) approach to address long-term visual place recognition. Different from previous methods using a single feature modality or a concatenation of multiple features, our SRAL method autonomously learns representative features that are shared in all scene scenarios, and then fuses the features together to represent the long-term appearance of environments observed by a robot during life-long navigation. By formulating SRAL as a regularized optimization problem, we use structured sparsity-inducing norms to model interrelationships of feature modalities. In addition, an optimization algorithm is developed to efﬁciently solve the formulated optimization problem, which holds a theoretical convergence guarantee. Extensive empirical study was performed to evaluate the SRAL method using large-scale benchmark datasets, including St Lucia, CMU-VL, and Nordland datasets. Experimental results have shown that our SRAL method obtains superior performance for life-long place recognition using individual images, outperforms previous single image-based methods, and is capable of estimating the importance of feature modalities.</dcterms:abstract>
+        <dc:date>4/2017</dc:date>
+        <z:language>en</z:language>
+        <z:shortTitle>SRAL</z:shortTitle>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+               <rdf:value>http://ieeexplore.ieee.org/document/7839213/</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:10:53</dcterms:dateSubmitted>
+        <bib:pages>1172-1179</bib:pages>
+    </bib:Article>
+    <z:Attachment rdf:about="#item_14">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/14/Han et al. - 2017 - SRAL Shared Representative Appearance Learning fo.pdf"/>
+        <dc:title>Han et al. - 2017 - SRAL Shared Representative Appearance Learning fo.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="https://linkinghub.elsevier.com/retrieve/pii/S0031320317303448">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf rdf:resource="urn:issn:00313203"/>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Piasco</foaf:surname>
+                        <foaf:givenName>Nathan</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Sidibé</foaf:surname>
+                        <foaf:givenName>Désiré</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Demonceaux</foaf:surname>
+                        <foaf:givenName>Cédric</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Gouet-Brunet</foaf:surname>
+                        <foaf:givenName>Valérie</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_16"/>
+        <dc:subject>literature review</dc:subject>
+        <dc:title>A survey on Visual-Based Localization: On the benefit of heterogeneous data</dc:title>
+        <dcterms:abstract>We are surrounded by plenty of information about our environment. From these multiple sources, numerous data could be extracted: set of images, 3D model, coloured points cloud... When classical localization devices failed (e.g. GPS sensor in cluttered environments), aforementioned data could be used within a localization framework. This is called Visual Based Localization (VBL). Due to numerous data types that can be collected from a scene, VBL encompasses a large amount of different methods. This paper presents a survey about recent methods that localize a visual acquisition system according to a known environment. We start by categorizing VBL methods into two distinct families: indirect and direct localization systems. As the localization environment is almost always dynamic, we pay special attention to methods designed to handle appearances changes occurring in a scene. Thereafter, we highlight methods exploiting heterogeneous types of data. Finally, we conclude the paper with a discussion on promising trends that could permit to a localization system to reach high precision pose estimation within an area as large as possible.</dcterms:abstract>
+        <dc:date>02/2018</dc:date>
+        <z:language>en</z:language>
+        <z:shortTitle>A survey on Visual-Based Localization</z:shortTitle>
+        <z:libraryCatalog>DOI.org (Crossref)</z:libraryCatalog>
+        <dc:identifier>
+            <dcterms:URI>
+                <rdf:value>https://linkinghub.elsevier.com/retrieve/pii/S0031320317303448</rdf:value>
+            </dcterms:URI>
+        </dc:identifier>
+        <dcterms:dateSubmitted>2020-02-22 22:11:06</dcterms:dateSubmitted>
+        <bib:pages>90-109</bib:pages>
+    </bib:Article>
+    <bib:Journal rdf:about="urn:issn:00313203">
+        <prism:volume>74</prism:volume>
+        <dc:title>Pattern Recognition</dc:title>
+        <dc:identifier>DOI 10.1016/j.patcog.2017.09.013</dc:identifier>
+        <dcterms:alternative>Pattern Recognition</dcterms:alternative>
+        <dc:identifier>ISSN 00313203</dc:identifier>
+    </bib:Journal>
+    <z:Attachment rdf:about="#item_16">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/16/Piasco et al. - 2018 - A survey on Visual-Based Localization On the bene.pdf"/>
+        <dc:title>Piasco et al. - 2018 - A survey on Visual-Based Localization On the bene.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="#item_20">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf>
+           <bib:Journal></bib:Journal>
+        </dcterms:isPartOf>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Stumm</foaf:surname>
+                        <foaf:givenName>Elena</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_19"/>
+        <dc:subject>graph kernel</dc:subject>
+        <dc:subject>thesis</dc:subject>
+        <dc:title>Location models for visual place recognition</dc:title>
+        <z:language>en</z:language>
+        <z:libraryCatalog>Zotero</z:libraryCatalog>
+        <bib:pages>175</bib:pages>
+    </bib:Article>
+    <z:Attachment rdf:about="#item_19">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/19/Stumm - Location models for visual place recognition.pdf"/>
+        <dc:title>Stumm - Location models for visual place recognition.pdf</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+    <bib:Article rdf:about="#item_23">
+        <z:itemType>journalArticle</z:itemType>
+        <dcterms:isPartOf>
+           <bib:Journal></bib:Journal>
+        </dcterms:isPartOf>
+        <bib:authors>
+            <rdf:Seq>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Arandjelovi´c</foaf:surname>
+                        <foaf:givenName>Relja</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+                <rdf:li>
+                    <foaf:Person>
+                        <foaf:surname>Zisserman</foaf:surname>
+                        <foaf:givenName>Andrew</foaf:givenName>
+                    </foaf:Person>
+                </rdf:li>
+            </rdf:Seq>
+        </bib:authors>
+        <link:link rdf:resource="#item_22"/>
+        <dc:title>All about VLAD</dc:title>
+        <dcterms:abstract>The objective ofthis paper is large scale object instance
+retrieval, given a query image. A starting point ofsuch systems is feature detection and description, for example using SIFT. The focus of this paper, however, is towards very large scale retrieval where, due to storage requirements, very compact image descriptors are required and no information about the original SIFTdescriptors can be accessed directly at run time. We start from VLAD, the state-of-the art compact descriptor introduced by J´egou et al. [8] for this purpose, and make three novel contributions: first, we show that a simple change to the normalization method significantly improves retrieval performance; second, we show that vocabulary adaptation can substantially alleviate problems caused when images are added to the dataset after initial vocabulary learning. These two methods set a new stateof-the-art over all benchmarks investigated here for both mid-dimensional (20k-D to 30k-D) and small (128-D) descriptors. Our third contribution is a multiple spatial VLAD representation, MultiVLAD, that allows the retrieval and localization of objects that only extend over a small part of an image (again without requiring use of the original image SIFTdescriptors).</dcterms:abstract>
+        <z:language>English</z:language>
+        <dc:description>{relja,az}@robots.ox.ac.uk</dc:description>
+    </bib:Article>
+    <z:Attachment rdf:about="#item_22">
+        <z:itemType>attachment</z:itemType>
+        <rdf:resource rdf:resource="files/22/arandjelovic13.pdf"/>
+        <dc:title>All about VLAD</dc:title>
+        <link:type>application/pdf</link:type>
+    </z:Attachment>
+</rdf:RDF>
