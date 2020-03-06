@@ -13,3 +13,6 @@
 using namespace std;
 using namespace Eigen;
 
+void main()
+{
+}
