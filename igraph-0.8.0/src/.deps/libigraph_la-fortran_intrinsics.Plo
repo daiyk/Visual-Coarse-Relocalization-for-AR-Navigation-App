@@ -1,0 +1,28 @@
+libigraph_la-fortran_intrinsics.lo: fortran_intrinsics.c \
+ D:/msys2/mingw64/lib/gcc/x86_64-w64-mingw32/9.2.0/include/float.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/float.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/crtdefs.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/corecrt.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/vadefs.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h
+
+D:/msys2/mingw64/lib/gcc/x86_64-w64-mingw32/9.2.0/include/float.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/float.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/crtdefs.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/corecrt.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/vadefs.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h:

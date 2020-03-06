@@ -1,0 +1,25 @@
+f2c/libf2c_la-ctype.lo: f2c/ctype.c \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/ctype.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/crtdefs.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/corecrt.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/vadefs.h \
+ D:/msys2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/ctype.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/crtdefs.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/corecrt.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/vadefs.h:
+
+D:/msys2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h:
