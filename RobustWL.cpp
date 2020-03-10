@@ -20,8 +20,9 @@ using namespace Eigen;
  *
 
 **/
+double KernelValue(const vector<int> &map1, const vector<int> &map2, int &i, int &j, vector<int> &num_v, MatrixXd &node_nei);
 
-void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int> > &V_label, vector<int> &num_v, vector<int> &num_e, int h_max, MatrixXd &K_mat)
+void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int>> &V_label, vector<int> &num_v, vector<int> &num_e, int h_max, MatrixXd &K_mat)
 {
     //E is the vector of edge matrices, but only two graphs
     K_mat.setZero();
@@ -43,7 +44,7 @@ void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int> > &V_label, vector<i
 
     for (int i = 0; i < V_label.size(); i++)
     {
-        unordered_map<int, vector<int> > graph_inverted_index;
+        unordered_map<int, vector<int>> graph_inverted_index;
         for (int j = 0; j < V_label[i].size(); j++)
         {
             //use label value as index
@@ -52,15 +53,15 @@ void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int> > &V_label, vector<i
         }
         inverted_index.push_back(graph_inverted_index);
     }
-    
+
     //count the num of labels
     int n_label_vals = n_label.size();
 
-
-    //insert according to the labels vector's index
+    //insert according to the labels vector's index ordered set
     int idx = 0;
-    for(auto it:n_label){
-        label_index.insert(pair<int,int>(it,idx)); //sorted label values
+    for (auto it : n_label)
+    {
+        label_index.insert(pair<int, int>(it, idx)); //sorted label values
         idx++;
     }
 
@@ -74,48 +75,88 @@ void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int> > &V_label, vector<i
         norm_edge.col(i).array() /= edge_w;
     }
 
-
     //build neighborhood label vector for each vertex
     MatrixXd node_nei_vec = MatrixXd::Zero(v_all, n_label_vals);
+    int raise = 0;
     for (int i = 0; i < n; i++)
     {
         for (int j = 0; j < E[i].rows(); j++)
         {
-            int edge_0 = V_label[i][E[i](j,0)];
-            int edge_1 = V_label[i][E[i](j,1)];
+            int edge_0 = V_label[i][E[i](j, 0)];
+            int edge_1 = V_label[i][E[i](j, 1)];
 
             //add to the neighborhood list
-            node_nei_vec(edge_0,label_index.at(edge_0))+=norm_edge(j,i);
-            node_nei_vec(edge_1, label_index.at(edge_1)) += norm_edge(j,i);
+            //need to consider the offset for different graph
+            //label_index returns the label value's index
+            node_nei_vec(edge_0 + raise, label_index.at(edge_0)) += norm_edge(j, i);
+            node_nei_vec(edge_1 + raise, label_index.at(edge_1)) += norm_edge(j, i);
         }
+        raise+=num_v[i];
     }
 
-
     //iterate the predefined iteration and update kernel value
-    K_mat.resize(n,n);
-    for(int h=0;h<h_max;h++){
+    K_mat.resize(n, n), K_mat.setZero();
+    for (int h = 0; h < h_max; h++)
+    {
         //iterate all graphs
-        for(int i=0;i<n;i++){
+        for (int i = 0; i < n; i++)
+        {
             int offset = 0;
             for (int j = i; j < n; j++)
             {
-                //TODO iterate over all label value vertex! change the vertex numbering way! 
-                for(auto &val:n_label){
-                    inverted_index[i].find(val);
+                auto &inv_vet1 = inverted_index[i];
+                auto &inv_vet2 = inverted_index[j];
+                //TODO iterate over all label value vertex! change the vertex numbering way!
+                for (auto &val : n_label)
+                {
+                    //only increment the kernel value when same label is found in both graphs
+                    if(inv_vet1.count(val) && inv_vet2.count(val)){
+                        auto &map1 = inv_vet1[val];
+                        auto &map2 = inv_vet2[val];
+                        double kernelInc = KernelValue(map1,map2,i,j,num_v,node_nei_vec);
+                        K_mat(i,j) += kernelInc;                        
+                    }
+                    
+
                 }
-                
-                
             }
-            
         }
     }
 }
+
+double KernelValue(const vector<int> &map1, const vector<int> &map2, int &i, int &j, vector<int> &num_v, MatrixXd &node_nei)
+{
+    //calculate the kernel value increments
+    vector<double> values;
+    int start1 = 0, start2=0;
+    for(int m=0;m<i;m++){
+        start1+=num_v[m];
+    }
+    for(int m=0;m<j;m++){
+        start2+=num_v[m];
+    }
+
+    
+    for(auto v1 : map1){
+        for(auto v2 : map2){
+            VectorXd label_vec1 = node_nei.row(start1+v1);
+            VectorXd label_vec2 = node_nei.row(start2+v2);
+            //compute kernel value
+            values.push_back(label_vec1.dot(label_vec2));
+        }
+    }
+
+    //return the largest dot product value
+    return *max_element(values.begin(), values.end());
+}
+
 int main()
 {
     MatrixXd ones = MatrixXd::Ones(20, 20);
     unordered_map<int, int> test;
+    VectorXd one1 = ones.row(5);
     int &a = test[1];
-    a=1;
-    cout << test[1]<< endl;
+    a = 1;
+    cout << test[1] << endl;
     return 0;
 }
