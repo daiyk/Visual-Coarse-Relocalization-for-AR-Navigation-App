@@ -11,6 +11,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/LU>
 #include <Eigen/Eigenvalues>
+#include <opencv2/opencv.hpp>
 using namespace std;
 using namespace Eigen;
 
@@ -137,6 +138,9 @@ void WLRobustKernel(vector<MatrixXi> &E, vector<vector<int>> &V_label, vector<in
 
     //normalize the kernel value matrix
     double sum_kernel= K_mat.diagonal().sum();
+
+    //divide the kernel matrix with the total sum of self-kernel
+    K_mat/=sum_kernel;
     
     //
 
