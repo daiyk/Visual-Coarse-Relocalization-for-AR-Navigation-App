@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     Mat img_matches;
     drawMatches(img1, keypoints1, img2, keypoints2, matches, img_matches);
     //-- Show detected matches
+    namedWindow("Matches",WINDOW_NORMAL);
     imshow("Matches", img_matches);
     waitKey();
     return 0;
