@@ -15,7 +15,7 @@ const char *keys =
 
 
 void feature_lab(){
-    
+
 }
 int main(int argc, char *argv[])
 {
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     Mat img_matches; // just stores the generated images
     drawMatches(img1, keypoints1, img2, keypoints2, in_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
     //-- Show detected matches
-    cout<<"descirptor size"<<descriptors1.size<<endl<<"desciptor2 size"<<descriptors2.size<<endl;
+    cout<<"dWescirptor size"<<descriptors1.size<<endl<<"desciptor2 size"<<descriptors2.size<<endl;
     cout<<"matches's size"<<knn_matches.size();
     cout<<"matches:"<<in_matches.size()<<endl;
     namedWindow("Matches",WINDOW_NORMAL);
