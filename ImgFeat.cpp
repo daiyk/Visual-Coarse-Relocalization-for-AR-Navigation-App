@@ -79,10 +79,10 @@ void test_image_lab(Mat &test_img, Mat &kCenters, Mat &outImg){
     //extract the features from test image
     Ptr<SIFT> siftdetect = SIFT::create();
 
-    Mat descriptors;
+    Mat descriptors,grayImg;
     std::vector<KeyPoint> keypoints;
-
-    siftdetect->detectAndCompute(test_img,noArray(),keypoints,descriptors);
+    cvtColor(test_img,grayImg,COLOR_BGR2GRAY);
+    siftdetect->detectAndCompute(grayImg,noArray(),keypoints,descriptors);
 
     //match against the kmeans center descriptors
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::BRUTEFORCE);
@@ -99,6 +99,7 @@ void test_image_lab(Mat &test_img, Mat &kCenters, Mat &outImg){
     }
 
     //draw keypoints with color
+    test_img.copyTo(outImg); //fill outImg with original img
     cv::RNG rng(123);
     for(auto it=hist_centers.begin();it!=hist_centers.end();it++){
         Scalar color = Scalar(rng.uniform(0,255),rng.uniform(0,255),rng.uniform(0,255));
@@ -199,10 +200,10 @@ int main(int argc, char *argv[])
             }       
         }
         test_img = imread(test_paths[0]);
-        cvtColor(test_img,noArray(),)
         imshow("Test_img",test_img);
         test_image_lab(test_img,kCenters,out_img);
         imshow("Test_result",out_img);
+        waitKey();
     }
 
 
