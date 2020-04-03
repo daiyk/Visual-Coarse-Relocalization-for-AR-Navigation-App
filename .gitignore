@@ -1,2 +1,5 @@
 # vscode setting file
 .vscode/*
+
+# data files
+imgs/*
