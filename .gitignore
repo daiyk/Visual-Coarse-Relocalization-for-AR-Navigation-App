@@ -3,3 +3,8 @@
 
 # data files
 imgs/*
+
+*.jpg
+*.exe
+*.csv
+*.yml
