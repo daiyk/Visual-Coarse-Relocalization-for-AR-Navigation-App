@@ -28,7 +28,7 @@ const char *keys =
 const int dict_size = 200; //kmeans dictionary size
 const auto criteria = TermCriteria(TermCriteria::COUNT|TermCriteria::EPS, 20, 1e-3); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
 const int attempts = 3; //times of try to compute the center for each cluster, five times to choose the best one
-
+float MATCH_THRES = 0.6;
 
 //unpack octave number, copy from opencv source code https://github.com/opencv/opencv_contrib/blob/bebfd717485c79644a49ac406b0d5f717b881aeb/modules/xfeatures2d/src/sift.cpp#L214-L220
 void unpackOctave(const KeyPoint& kpt, int& octave, int& layer, float& scale)
@@ -122,7 +122,12 @@ void img_descips_compute(std::vector<String> &paths, std::vector<KeyPoint> &keyp
     }   
     clock_t sTime=clock();
     cout<<"start k-means learning..."<<endl;
- 
+    Mat outImg,grayImg;
+    cvtColor(imread(paths[0]),grayImg,COLOR_BGR2GRAY);
+    outImg = grayImg;
+    drawKeypoints(grayImg,keypoints,outImg,Scalar::all(-1),DrawMatchesFlags::DRAW_OVER_OUTIMG);
+    imshow("test Img",outImg);
+    waitKey();
     Mat labels; //stores the trained labels
     //k-means 
     kmeans(allDescrips,dict_size,labels,criteria,attempts,KMEANS_PP_CENTERS,kCenters);
@@ -190,7 +195,7 @@ void test_image_lab(Mat &test_img, Mat &kCenters, Mat &outImg, std::vector<KeyPo
 }
 
 //read paths for train and test imgs
-bool readFiles(int argc, const char* argv[],std::vector<std::string>& trainFilePaths, std::vector<std::string> &testFilePaths) {
+bool readFiles(int argc, char* argv[],std::vector<std::string>& trainFilePaths, std::vector<std::string> &testFilePaths) {
     std::fstream fileRead;
     //open files with link of images
     CommandLineParser parser(argc, argv, keys);
@@ -258,10 +263,54 @@ bool readFiles(int argc, const char* argv[],std::vector<std::string>& trainFileP
      * if both are provided, raise error
      * 
      * */
-    if(!img1.empty() && !img2.empty() && !imgs_path.empty()){
-        cout<<"COMFLICT ERROR: Please EITHER provide path or provide input 1/2."<<endl;
-        return false;
+    
+    if (img1.empty() || img2.empty())
+    {
+        cout << "Could not open or find the image!\n"
+             << endl;
+        parser.printMessage();
+        return -1;
     }
+    if(imgs_path.empty() && !img1.empty() && !img2.empty()){
+        //-- Step 1: Detect the keypoints using SURF Detector, compute the descriptors
+        int minHessian = 2000;
+        Ptr<SURF> detector = SURF::create(minHessian);
+        std::vector<KeyPoint> keypoints1, keypoints2;
+        Mat descriptors1, descriptors2;
+        detector->detectAndCompute(img1, noArray(), keypoints1, descriptors1);
+        detector->detectAndCompute(img2, noArray(), keypoints2, descriptors2);
+        //-- Step 2: Matching descriptor vectors with a brute force matcher
+        // Since SURF is a floating-point descriptor NORM_L2 is used
+        Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
+        std::vector<std::vector<DMatch>> knn_matches;
+        matcher->knnMatch(descriptors1, descriptors2, knn_matches,2);
+
+        std::vector<DMatch> in_matches;
+        //define the good and bad matches
+        for(int i=0;i<knn_matches.size();i++){
+        
+                if(knn_matches[i][0].distance<MATCH_THRES*knn_matches[i][1].distance){
+                    in_matches.push_back(knn_matches[i][0]);
+                }
+        }
+        //-- Draw matches
+        Mat img_matches; // just stores the generated images
+        drawMatches(img1, keypoints1, img2, keypoints2, in_matches, img_matches, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+        //-- Show detected matches
+        cout<<"descirptor size :"<<descriptors1.size<<endl<<"desciptor2 size"<<descriptors2.size<<endl;
+        cout<<"matches's size :"<<knn_matches.size();
+        cout<<"matches size: "<<in_matches.size()<<endl;
+        namedWindow("Matches",WINDOW_NORMAL);
+        imshow("Matches", img_matches);
+        imwrite("test_matching.jpg",img_matches);
+        waitKey();
+        if(!img1.empty() && !img2.empty() && !imgs_path.empty()){
+            cout<<"COMFLICT ERROR: Please EITHER provide path or provide input 1/2."<<endl;
+            return false;
+        }
+        return true;
+    }
+    return false;
     //TODO: function for read other types of arg inputs
 }
 
@@ -280,7 +329,8 @@ bool train(std::vector<String> trainPaths, Mat &kCenters)
         }
 
         //write out kecenters
-        write_to_file("train_statisic",std::vector<KeyPoint>(),kCenters);
+        std::vector<KeyPoint> shadowkpts;
+        write_to_file("train_statisic",shadowkpts,kCenters);
     
     return true;
 }
@@ -318,6 +368,7 @@ bool test(std::vector<String> testPaths, Mat &kCenters){
     {
         if(octave_kpts.size()!=0){
             Mat octave_img;
+            cout<<"octave "+std::to_string(i-1)+" with size"<< octave_kpts[i].size()<<endl;
             drawKeypoints(test_img,octave_kpts[i],octave_img,Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
             imwrite("test_octave_"+std::to_string(i-1)+".jpg",octave_img);
         }
@@ -336,14 +387,14 @@ int main(int argc, char *argv[]){
     readFiles(argc,argv,trainPaths,testPaths);
     //start train
     train(trainPaths,kCenters);
-    //test image
-    test(testPaths,kCenters);
+    
     FileStorage ReadKcenters("kmeansCenter.yml",cv::FileStorage::READ);
     
     
-    ReadKcenters["kcenters"]>>kCenters;
-    std::cout<<"read kcenters success......"<<endl;
-    test(argc,argv,kCenters);
+    // ReadKcenters["kcenters"]>>kCenters;
+    // std::cout<<"read kcenters success......"<<endl;
+    // //test image
+    // test(testPaths,kCenters);
     return 0;
 }
 #else
