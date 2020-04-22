@@ -35,12 +35,19 @@ using std::endl;
 using cmdType = std::unordered_map<String, bool>;
 const char *keys =
      "{ help h |                  | Print help message. }"
-     "{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat default both. }"
-     "{ path   |                  | Path to the image folder, not comp. with input1/2 }"
-     "{ img    |                  | Path to input img, compute the keypoints and descriptor for the img }"
-     "{ input1 |                  | Path to input image 1, not comp. with path }"
-     "{ input2 |                  | Path to input image 2, not comp. with path }";
-
+     "{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
+     "{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }"
+     "{ img    |                  | Path to single test input img, computing and visualize the keypoints and descriptor for the img }"
+     "{ input1 |                  | Image matching pairs, Path to input image 1, not comp. with path }"
+     "{ input2 |                  | Image matching pairs, Path to input image 2, not comp. with path }";
+/*
+*   1. path: directory of the training images folders. Program detects and learns visual words(default 200 words) from a sets of image, save the words to "Result" folder;
+*   2. img: path to single test img. Program shows SIFT demo by detecting and computing features, visualize the result by OpenCV and vlfeat;
+*   3. input1/input2: path to images 1, 2 for matching demo. Program detects images features by SIFT and match them by FLANN, visualize the matching result.
+*
+* Note: 1, 2 and 3 are not compatable args; "JPG" is the only accepted format; set "-tool" option to "opencv"/"vlfeat" if only one lib is used; matching demo 3. only uses vlfeat. 
+    
+ */
 const int octave = 8;       // number of octave used in the sift detection
 const int noctaveLayer = 3; // scale layers per octave
 const int octave_start = 1; // learning start from 1th octave, -1 for more details
@@ -167,7 +174,7 @@ void openCVimg_descips_compute(std::vector<String>& paths, Mat& allDescripts, st
 
 void vl_visual_word_compute(Mat &allDescrip, Mat &kCenters) {
     clock_t sTime = clock();
-    cout << "start k-means learning with "<<centers<<" computed..." << endl;
+    cout << "start k-means learning with "<<centers<<" centers..." << endl;
     //all kmeans parameters setting corresponding with OpenCV setting
     int dim = 128;
     int numOfpts = allDescrip.rows;
@@ -301,7 +308,7 @@ void vlimg_descips_compute(std::vector<std::string>& paths, Mat &allDescripts, s
 
         }   
     }
-    cout << "->vlfeat SIFT descriptor computing spent " << clock() - sTime << " sec......" << endl;
+    cout << "->vlfeat SIFT descriptor computing spent " << (clock() - sTime)/ double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 
 //scan and read files for train and test img subfolder from the provided path
