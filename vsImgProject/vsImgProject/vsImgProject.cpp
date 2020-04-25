@@ -131,7 +131,7 @@ void openCV_visual_words_compute(Mat &allDescripts,Mat &kCenters) {
     cout << "->successfully produce cluster centers MAT with size: " << kCenters.rows << endl;
     cout << "-> kmeans learning spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
-void openCVimg_descips_compute(std::vector<String>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
+void openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
 {
     clock_t sTime = clock();
     size_t num_imgs = paths.size();
