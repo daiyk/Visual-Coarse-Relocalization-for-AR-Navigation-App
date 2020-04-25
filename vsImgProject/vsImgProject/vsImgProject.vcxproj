@@ -165,7 +165,17 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="cluster.cpp" />
+    <ClCompile Include="extractor.cpp" />
+    <ClCompile Include="fileop.cpp" />
     <ClCompile Include="vsImgProject.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cluster.h" />
+    <ClInclude Include="constAndTypes.h" />
+    <ClInclude Include="extractor.h" />
+    <ClInclude Include="fileop.h" />
+    <ClInclude Include="helper.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
