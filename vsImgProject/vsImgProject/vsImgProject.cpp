@@ -40,7 +40,6 @@ int main(int argc, const char* argv[]) {
         return 0;
     }
 
-   
     cout << "->total files found: " << trainPaths.size() + testPaths.size() << endl;
     if (readResult.mode==cAt::ArgType::MODE_MATCHING) {
         VL_PRINT("!------- Start image matching with vlfeat ------!\n");
