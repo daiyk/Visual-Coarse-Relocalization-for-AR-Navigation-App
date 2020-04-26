@@ -66,7 +66,7 @@ void fileop::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& k
     }
 }
 
- ArgList fileop::readFiles(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths) {
+ ArgList fileop::funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths) {
 
     //open files with link of images
     CommandLineParser parser(argc, argv, keys);

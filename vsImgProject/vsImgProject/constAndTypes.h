@@ -26,7 +26,7 @@ namespace constandtypes {
 	const double accuracy = 1e-3;
 
 	//OpenCV relevent setting
-	const auto criteria = TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
+	const auto criteria = cv::TermCriteria(cv::TermCriteria::COUNT | cv::TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
 	const float MATCH_THRES = 0.7; //define the threshold for matching 
 
 	//matching setting

@@ -4,13 +4,12 @@
 #define _EXTRACTOR_H
 #include <vector>
 #include <opencv2/core.hpp>
-using namespace cv;
+namespace extractor {
+	// opencv pipeline to do extraction of keypoints and descriptors 
+	void openCVimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& keypoints);
 
-// opencv pipeline to do extraction of keypoints and descriptors 
-void openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints);
-
-// vlfeat pipleline to do extraction of keypoints and descriptors
-void vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& cv_keypoints);
-
+	// vlfeat pipleline to do extraction of keypoints and descriptors
+	void vlimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& cv_keypoints);
+}
 #endif // ! _DESCRIP_EXT_H
 

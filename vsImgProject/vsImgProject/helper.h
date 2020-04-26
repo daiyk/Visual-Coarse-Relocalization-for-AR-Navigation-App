@@ -1,6 +1,7 @@
 #pragma once
 #ifndef _HELPER_H
 #define _HELPER_H
+#pragma warning(disable : 4996) //_CRT_SECURE_NO_WARNINGS
 #include <opencv2/core.hpp>
 #include <ctime>
 

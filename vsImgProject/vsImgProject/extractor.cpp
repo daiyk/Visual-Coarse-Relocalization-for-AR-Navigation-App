@@ -1,8 +1,8 @@
 #include <opencv2/core.hpp>
 #include <iostream>
 #ifdef HAVE_OPENCV_XFEATURES2D
-#include "opencv2/highgui.hpp"
-#include "opencv2/imgproc.hpp"
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include <filesystem>
 #include <omp.h>
@@ -14,8 +14,10 @@ extern "C" {
 }
 
 using namespace std;
+using namespace cv;
 namespace fs = std::filesystem;
-void openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
+namespace cAt = constandtypes;
+void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
 {
     clock_t sTime = clock();
     size_t num_imgs = paths.size();
@@ -53,7 +55,7 @@ void openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescript
     cout << "-> openCV SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 
-void vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& cv_keypoints)
+void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& cv_keypoints)
 {
     size_t num_imgs = paths.size();
     if (num_imgs == 0) {
@@ -80,7 +82,7 @@ void vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, s
             int height = grayImg.size().height;
 
 
-            auto vl_sift = vl_sift_new(width, height, constandtypes::octave, constandtypes::noctaveLayer, 1);//define vl sift processor
+            auto vl_sift = vl_sift_new(width, height, cAt::octave, cAt::noctaveLayer, 1);//define vl sift processor
             vl_sift_set_edge_thresh(vl_sift, 10);
             vl_sift_set_peak_thresh(vl_sift, 0.04);
 
@@ -153,6 +155,6 @@ void vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, s
 
 #else
 
-#error "Requies OpenCV xfeature2d modules, please refer to opencv_contrib!"
+#error "Require OpenCV xfeature2d contrib_modules, please refer to opencv_contrib: https://github.com/opencv/opencv_contrib"
 
 #endif

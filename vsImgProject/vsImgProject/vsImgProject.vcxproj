@@ -168,6 +168,7 @@
     <ClCompile Include="cluster.cpp" />
     <ClCompile Include="extractor.cpp" />
     <ClCompile Include="fileop.cpp" />
+    <ClCompile Include="matcher.cpp" />
     <ClCompile Include="vsImgProject.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -176,6 +177,7 @@
     <ClInclude Include="extractor.h" />
     <ClInclude Include="fileop.h" />
     <ClInclude Include="helper.h" />
+    <ClInclude Include="matcher.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

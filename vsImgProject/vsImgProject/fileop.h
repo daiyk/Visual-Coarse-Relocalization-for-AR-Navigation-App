@@ -15,7 +15,7 @@ namespace fileop {
 		ArgType mode = ArgType::DEFAULT;
 	};
 
-	ArgList readFiles(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths);
+	ArgList funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths);
 	
 	//generate two files: (optionally) recording keypoints and kcenters
 	void write_to_file(std::string name, std::vector<cv::KeyPoint>& kpts, cv::Mat& kCenters);
