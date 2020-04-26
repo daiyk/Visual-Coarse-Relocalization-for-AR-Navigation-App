@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StaticVRImg", "StaticVRImg\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FuntestVRN", "FuntestVRN\FuntestVRN.vcxproj", "{2CE014DE-3AE5-4ECF-9167-A23769D1455D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HpatchesTest", "HpatchesTest\HpatchesTest.vcxproj", "{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Release|x64.Build.0 = Release|x64
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Release|x86.ActiveCfg = Release|Win32
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Release|x86.Build.0 = Release|Win32
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Debug|x64.ActiveCfg = Debug|x64
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Debug|x64.Build.0 = Debug|x64
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Debug|x86.ActiveCfg = Debug|Win32
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Debug|x86.Build.0 = Debug|Win32
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Release|x64.ActiveCfg = Release|x64
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Release|x64.Build.0 = Release|x64
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Release|x86.ActiveCfg = Release|Win32
+		{BE8DDEC3-A118-4193-B038-3CD1A3E97BF7}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

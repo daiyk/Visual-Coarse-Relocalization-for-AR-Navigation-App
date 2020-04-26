@@ -5,7 +5,7 @@
   <PropertyGroup />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>D:\thesis\vlfeat;D:\thesis\opencv-vs-windows\bin\install\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\thesis\Visual-Coarse-Relocalization-for-AR-Navigation-App\3rdParty\eigen-3.3.7;D:\thesis\vlfeat;D:\thesis\opencv-vs-windows\bin\install\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OpenMPSupport>true</OpenMPSupport>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
