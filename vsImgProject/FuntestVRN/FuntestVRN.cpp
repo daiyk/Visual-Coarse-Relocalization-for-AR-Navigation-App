@@ -2,21 +2,18 @@
 //
 
 extern "C" {
-    #include "vl/sift.h"
     #include "vl/generic.h"
-    #include "vl/kmeans.h"
-    #include "vl/kdtree.h"
 }
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgproc.hpp>
-#include "constAndTypes.h"
-#include "fileop.h"
-#include "matcher.h"
-#include "extractor.h"
-#include "cluster.h"
+#include "StaticVRImg/constAndTypes.h"
+#include "StaticVRImg/fileop.h"
+#include "StaticVRImg/matcher.h"
+#include "StaticVRImg/extractor.h"
+#include "StaticVRImg/cluster.h"
 using namespace std;
 using namespace cv;
 namespace cAt = constandtypes;

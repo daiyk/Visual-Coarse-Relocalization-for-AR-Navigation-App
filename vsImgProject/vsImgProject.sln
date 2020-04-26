@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30002.166
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vsImgProject", "vsImgProject\vsImgProject.vcxproj", "{2CE014DE-3AE5-4ECF-9167-A23769D1455D}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StaticVRImg", "StaticVRImg\StaticVRImg.vcxproj", "{1F7BEFA8-52B0-413D-8AC1-81A131315F81}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FuntestVRN", "FuntestVRN\FuntestVRN.vcxproj", "{2CE014DE-3AE5-4ECF-9167-A23769D1455D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,6 +15,14 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Debug|x64.ActiveCfg = Debug|x64
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Debug|x64.Build.0 = Debug|x64
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Debug|x86.ActiveCfg = Debug|Win32
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Debug|x86.Build.0 = Debug|Win32
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Release|x64.ActiveCfg = Release|x64
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Release|x64.Build.0 = Release|x64
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Release|x86.ActiveCfg = Release|Win32
+		{1F7BEFA8-52B0-413D-8AC1-81A131315F81}.Release|x86.Build.0 = Release|Win32
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Debug|x64.ActiveCfg = Debug|x64
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Debug|x64.Build.0 = Debug|x64
 		{2CE014DE-3AE5-4ECF-9167-A23769D1455D}.Debug|x86.ActiveCfg = Debug|Win32

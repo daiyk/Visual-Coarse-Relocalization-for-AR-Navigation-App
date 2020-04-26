@@ -50,7 +50,7 @@ ipch/
 *.opendb
 *.cachefile
 *.db
-
+.vs
 # Visual Studio profiler
 *.psess
 *.vsp
