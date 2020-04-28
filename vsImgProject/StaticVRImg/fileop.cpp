@@ -13,14 +13,6 @@ using namespace cv;
 using namespace std;
 namespace fs = std::filesystem;
 
-const char* keys =
-"{ help h |                  | Print help message. }"
-"{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
-"{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }"
-"{ img    |                  | Path to single test input img, computing and visualize the keypoints and descriptor for the img }"
-"{ input1 |                  | Image matching pairs, Path to input image 1, not comp. with path }"
-"{ input2 |                  | Image matching pairs, Path to input image 2, not comp. with path }";
-
 void fileop::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& kCenters) {
     if (!fs::exists("Result")) {
         fs::create_directories("Result");
@@ -66,9 +58,9 @@ void fileop::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& k
     }
 }
 
- ArgList fileop::funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths) {
+ ArgList fileop::funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths, const char* keys) {
 
-    //open files with link of images
+    //parser argument list
     CommandLineParser parser(argc, argv, keys);
     ArgList cmd; //add arg options to this variables
 
@@ -135,7 +127,7 @@ void fileop::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& k
                         cout << "test img is added and found at: " << entry.path().string() << "......" << endl;
                     }
                     else {
-                        cout << "img " + entry.path().string() + ": Extension" + extension + " is not supported dismiss the image" << endl;
+                        cout << "img " + entry.path().string() + ": Extension" + extension + " is not supported ignore the image" << endl;
                     }
                 }
             }

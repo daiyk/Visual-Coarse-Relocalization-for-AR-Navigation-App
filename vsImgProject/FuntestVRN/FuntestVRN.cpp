@@ -1,6 +1,5 @@
 // vsImgProject.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
-
 extern "C" {
     #include "vl/generic.h"
 }
@@ -17,6 +16,15 @@ extern "C" {
 using namespace std;
 using namespace cv;
 namespace cAt = constandtypes;
+
+const char* keys =
+"{ help h |                  | Print help message. }"
+"{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
+"{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }"
+"{ img    |                  | Path to single test input img, computing and visualize the keypoints and descriptor for the img }"
+"{ input1 |                  | Image matching pairs, Path to input image 1, not comp. with path }"
+"{ input2 |                  | Image matching pairs, Path to input image 2, not comp. with path }";
+
 int main(int argc, const char* argv[]) {
     VL_PRINT("!------- Feature detection program starts! ------!\n");
     VL_PRINT("!-------Your argument command line ------!\n");
@@ -29,7 +37,7 @@ int main(int argc, const char* argv[]) {
     std::vector<KeyPoint> keypoints;
     try
     {
-        readResult = fileop::funTestRead(argc, argv, trainPaths, testPaths);
+        readResult = fileop::funTestRead(argc, argv, trainPaths, testPaths, keys);
     }
     catch (const std::invalid_argument& msg)
     {

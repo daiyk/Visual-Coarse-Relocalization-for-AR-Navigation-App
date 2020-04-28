@@ -12,15 +12,15 @@ extern "C" {
 }
 
 namespace cAt = constandtypes;
-
 using namespace cv;
 namespace fs = std::filesystem;
-
-void matcher::kdTree(std::string& img1, std::string& img2) {
+matcher::matchOut matcher::kdTree(std::string& img1, std::string& img2, bool display) {
     std::vector<std::vector<KeyPoint>> ttl_kpts;
     int dim = 128;
-    
+    Mat outImg;
     std::vector<std::string> trainPath; //template path store the image paths
+    std::vector<DMatch> matches; //
+    matcher::matchOut matchRel;
     
     trainPath.push_back(img1);
     Mat descripts1,descripts2;
@@ -39,7 +39,7 @@ void matcher::kdTree(std::string& img1, std::string& img2) {
     int numKpts1 = kpts1.size();
     int numKpts2 = kpts2.size();
 
-    if (descripts1.isContinuous()&& descripts2.isContinuous()) {
+    if (descripts1.isContinuous() && descripts2.isContinuous()) {
         //use img1 to build kd-tree
         vl_kdforest_build(tree, numKpts1, descripts1.ptr<float>(0));
 
@@ -55,22 +55,27 @@ void matcher::kdTree(std::string& img1, std::string& img2) {
         std::cout << " -> total number of " << numOfleaf << " leafs are visited" << std::endl;
         //draw matches
         Mat image1 = imread(img1), image2 = imread(img2);
+
         //build Dmatches
-        std::vector<DMatch> matches;
         for (int i = 0; i < numKpts2; i++)
         {
             DMatch match = DMatch(i, NNs[cAt::numOfNN * i], NNdist[cAt::numOfNN * i]);
             matches.push_back(match);
         }
-        Mat outImg;
-        drawMatches(image2, kpts2, image1, kpts1, matches, outImg, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-        namedWindow("Matches", WINDOW_NORMAL);
-        imshow("Matches", outImg);
-        waitKey();
+        matchRel.matches = matches;
+        matchRel.source = kpts2;
+        matchRel.refer = kpts1;
+        if (display) {
+            drawMatches(image2, kpts2, image1, kpts1, matches, outImg, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            namedWindow("Matches", WINDOW_NORMAL);
+            imshow("Matches", outImg);
+            waitKey();
+        }
     }
     else {
         std::cout << "ERROR: Matching stop for descriptors Mat is not continuous" << std::endl;
     }
+    return matchRel;
 }
 
 

@@ -161,6 +161,7 @@
     <ClCompile Include="cluster.cpp" />
     <ClCompile Include="extractor.cpp" />
     <ClCompile Include="fileop.cpp" />
+    <ClCompile Include="kernel.cpp" />
     <ClCompile Include="matcher.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
