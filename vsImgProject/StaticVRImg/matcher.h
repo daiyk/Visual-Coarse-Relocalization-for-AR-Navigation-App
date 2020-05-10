@@ -7,13 +7,16 @@
 #include <opencv2/core.hpp>
 
 
+
 namespace matcher {
 	struct matchOut {
 		std::vector<cv::DMatch> matches;
 		std::vector<cv::KeyPoint> source;
 		std::vector<cv::KeyPoint> refer;
 	};
-	matchOut kdTree(std::string& img1, std::string& img2, bool display=true);
+	matchOut kdTreeDemo(std::string& img1, std::string& img2, bool display=true);
+	std::vector<cv::DMatch> kdTree(cv::Mat &source, cv::Mat &query);
+
 }
 
 #endif

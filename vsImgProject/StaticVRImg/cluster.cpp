@@ -1,27 +1,27 @@
 #include <opencv2/core.hpp>
 #include <iostream>
 #include "cluster.h"
-#include "constAndTypes.h"
+#include "fileManager.h"
 extern "C" {
     #include "vl/generic.h"
     #include "vl/kmeans.h"
     #include "vl/kdtree.h"
 }
 using namespace std;
-namespace cAt = constandtypes;
+using params = fileManager::parameters;
 
 void cluster::openCV_visual_words_compute(cv::Mat& allDescripts, cv::Mat& kCenters) {
     clock_t sTime = clock();
     cout << "start k-means learning..." << endl;
     cv::Mat labels; //stores the trained labels
     //k-means 
-    kmeans(allDescripts, cAt::centers, labels, cAt::criteria, cAt::numOfAttemp, cv::KMEANS_PP_CENTERS, kCenters);
+    kmeans(allDescripts, params::centers, labels, params::criteria, params::numOfAttemp, cv::KMEANS_PP_CENTERS, kCenters);
     cout << "->successfully produce cluster centers MAT with size: " << kCenters.rows << endl;
     cout << "-> kmeans learning spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
     clock_t sTime = clock();
-    cout << "start k-means learning with " << cAt::centers << " centers..." << endl;
+    cout << "start k-means learning with " << params::centers << " centers..." << endl;
     //all kmeans parameters setting corresponding with OpenCV setting
     int dim = 128;
     int numOfpts = allDescrip.rows;
@@ -31,7 +31,7 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
 
     //data row major
     float* data = allDescrip.ptr<float>(0);
-    vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, cAt::centers);
+    vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, params::centers);
 
     vl_kmeans_set_num_repetitions(km, 3);
 
@@ -42,8 +42,8 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
     **  set the relative energy variation to the initial minus current energy as the stop criteria
     **  OpenCV uses the absolute variation of pixel corner position for kcenters as stop criteria, while VLFeat is the relative energy variation.
     **/
-    vl_kmeans_set_min_energy_variation(km, cAt::accuracy);
-    vl_kmeans_set_max_num_iterations(km, cAt::numOfItera);
+    vl_kmeans_set_min_energy_variation(km, params::accuracy);
+    vl_kmeans_set_max_num_iterations(km, params::numOfItera);
     energy = vl_kmeans_refine_centers(km, data, numOfpts);
 
     //obtain kcenters result
@@ -51,7 +51,7 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
 
     //iterate and stores the kcenters as cv::Mat
     cv::Mat1f centerDescrip(1, dim);
-    for (int i = 0; i < cAt::centers; i++) {
+    for (int i = 0; i < params::centers; i++) {
         for (int j = 0; j < dim; j++) {
             centerDescrip(0, j) = center_ptr[i * dim + j];
         }

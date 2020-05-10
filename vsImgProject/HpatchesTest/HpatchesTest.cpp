@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
 			std::string& refImg = imgs[0];
 
 			for (int i = 0; i < imgs.size();i++) {
-				matchRel=matcher::kdTree(refImg, imgs[i], false);
+				matchRel=matcher::kdTreeDemo(refImg, imgs[i], false);
 				Mat outImg;
 				cv::drawMatches(imread(imgs[i]), matchRel.source, imread(imgs[0]), matchRel.refer, matchRel.matches, outImg, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 

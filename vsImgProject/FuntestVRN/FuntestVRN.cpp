@@ -9,35 +9,32 @@ extern "C" {
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgproc.hpp>
 #include "StaticVRImg/constAndTypes.h"
-#include "StaticVRImg/fileop.h"
+#include "StaticVRImg/fileManager.h"
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/extractor.h"
 #include "StaticVRImg/cluster.h"
 using namespace std;
 using namespace cv;
-namespace cAt = constandtypes;
 
 const char* keys =
 "{ help h |                  | Print help message. }"
 "{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
-"{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }"
-"{ img    |                  | Path to single test input img, computing and visualize the keypoints and descriptor for the img }"
-"{ input1 |                  | Image matching pairs, Path to input image 1, not comp. with path }"
-"{ input2 |                  | Image matching pairs, Path to input image 2, not comp. with path }";
+"{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
+"{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }";
 
 int main(int argc, const char* argv[]) {
-    VL_PRINT("!------- Feature detection program starts! ------!\n");
+    VL_PRINT("!------- staticVRImg Lib Function Test Program Starts! ------!\n");
     VL_PRINT("!-------Your argument command line ------!\n");
     for (int i = 1; i < argc; i++) {
         cout << " ->" << argv[i] << endl;
     }
     std::vector<std::string> trainPaths, testPaths;
-    fileop::ArgList readResult;
+    fileManager::ArgList readResult;
     Mat allDescrips, kCenters;
     std::vector<KeyPoint> keypoints;
     try
     {
-        readResult = fileop::funTestRead(argc, argv, trainPaths, testPaths, keys);
+        readResult = fileManager::funTestRead(argc, argv, trainPaths, testPaths, keys);
     }
     catch (const std::invalid_argument& msg)
     {
@@ -46,15 +43,15 @@ int main(int argc, const char* argv[]) {
     }
 
     cout << "->total files found: " << trainPaths.size() + testPaths.size() << endl;
-    if (readResult.mode==cAt::ArgType::MODE_MATCHING) {
+    if (readResult.mode== fileManager::ArgType::MODE_MATCHING) {
         VL_PRINT("!------- Start image matching with vlfeat ------!\n");
-        matcher::kdTree(trainPaths[0],trainPaths[1]);
+        matcher::kdTreeDemo(trainPaths[0],trainPaths[1]);
         VL_PRINT("!------- This program stop here ------!\n");
         return 0;
     }
 
     VL_PRINT("!------- Start feature detection with OpenCV and VLFeat ------!\n");
-    if (readResult.tool==cAt::ArgType::TOOL_VLFEAT || readResult.tool==cAt::ArgType::TOOL_OPENCV_AND_VLFEAT) {
+    if (readResult.tool==fileManager::ArgType::TOOL_VLFEAT || readResult.tool==fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT) {
         VL_PRINT("!------- VLFeat ------!\n");
         clock_t sTime = clock();
         //start vlfeat sift feature detection
@@ -68,16 +65,16 @@ int main(int argc, const char* argv[]) {
 
 
         //check if only test img feature detection
-        if (readResult.mode==cAt::ArgType::MODE_TRAIN) {
+        if (readResult.mode==fileManager::ArgType::MODE_TRAIN) {
             //train k-means classifier
             //free memory since keypoints during training is not useful 
             std::vector<KeyPoint>().swap(keypoints);
             cluster::vl_visual_word_compute(allDescrips, kCenters);
             std::vector<KeyPoint> kpts;
-            fileop::write_to_file("vlfeat", kpts, kCenters);
+            fileManager::write_to_file("vlfeat", kpts, kCenters);
         }
         //demo
-        else if (readResult.mode==cAt::ArgType::MODE_DEMO) { 
+        else if (readResult.mode==fileManager::ArgType::MODE_DEMO) { 
             Mat outImg, purImg;
             outImg = imread(trainPaths[0]);
             purImg = outImg;
@@ -89,7 +86,7 @@ int main(int argc, const char* argv[]) {
     }
 
     //openCV pipeline
-    if (readResult.tool==cAt::ArgType::TOOL_OPENCV_AND_VLFEAT || readResult.tool ==cAt::ArgType::TOOL_OPENCV) {
+    if (readResult.tool==fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT || readResult.tool ==fileManager::ArgType::TOOL_OPENCV) {
         VL_PRINT("!------- OpenCV ------!\n");
         clock_t sTime = clock();
         try {
@@ -101,13 +98,13 @@ int main(int argc, const char* argv[]) {
         }
 
         //kmeans visual word computing by openCV
-        if (readResult.mode==cAt::ArgType::MODE_TRAIN) {
+        if (readResult.mode==fileManager::ArgType::MODE_TRAIN) {
             std::vector<KeyPoint>().swap(keypoints);
             cluster::openCV_visual_words_compute(allDescrips, kCenters);
             std::vector<KeyPoint> kpts;
-            fileop::write_to_file("opencv", kpts, kCenters);
+            fileManager::write_to_file("opencv", kpts, kCenters);
         }
-        else if (readResult.mode==cAt::ArgType::MODE_DEMO) {
+        else if (readResult.mode==fileManager::ArgType::MODE_DEMO) {
             Mat outImg, purImg;
             outImg = imread(trainPaths[0]);
             purImg = outImg;
@@ -118,7 +115,7 @@ int main(int argc, const char* argv[]) {
         cout << "-> opencv SIFT detection / Kmeans learning totally spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
         //write important data to file
     }
-    if (readResult.mode == cAt::ArgType::DEFAULT || readResult.tool == cAt::ArgType::DEFAULT) {
+    if (readResult.mode == fileManager::ArgType::DEFAULT || readResult.tool == fileManager::ArgType::DEFAULT) {
         cout << "ERROR: unsupported arguments list" << endl;
     }
     VL_PRINT("!------- This program stop here ------!\n");

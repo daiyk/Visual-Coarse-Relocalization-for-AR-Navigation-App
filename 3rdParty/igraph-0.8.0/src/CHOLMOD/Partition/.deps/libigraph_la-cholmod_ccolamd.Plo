@@ -1,2 +1,0 @@
-CHOLMOD/Partition/libigraph_la-cholmod_ccolamd.lo: \
- CHOLMOD/Partition/cholmod_ccolamd.c

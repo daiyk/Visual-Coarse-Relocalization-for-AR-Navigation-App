@@ -1,21 +1,11 @@
 #pragma once
-
 #ifndef _CONSTANDTYPES_H
 #define _CONSTANDTYPES_H
+#include <limits>
 #include <opencv2/core.hpp>
-namespace constandtypes {
+namespace constandtypes{
 
-	//args enum for argcs read
-	enum class ArgType {
-		TOOL_OPENCV,
-		TOOL_VLFEAT,
-		TOOL_OPENCV_AND_VLFEAT,
-		MODE_TRAIN,
-		MODE_MATCHING,
-		MODE_DEMO,
-		DEFAULT
-	};
-
+	// below will be transformed to json file.
 	const int octave = 8;       // number of octave used in the sift detection
 	const int noctaveLayer = 3; // scale layers per octave
 	const int octave_start = 1; // learning start from 1th octave, -1 for more details
@@ -32,6 +22,10 @@ namespace constandtypes {
 	//matching setting
 	const int numOfNN = 2;
 }
-
-
 #endif
+
+
+////graph building constants
+	//int minNumDeg = 0;
+	//int maxNumDeg = -1;
+	//double radDegLim = std::numeric_limits<double>::infinity();

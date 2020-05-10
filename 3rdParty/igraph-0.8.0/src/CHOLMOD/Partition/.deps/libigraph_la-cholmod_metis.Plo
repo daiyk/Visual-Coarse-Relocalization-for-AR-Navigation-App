@@ -1,2 +1,0 @@
-CHOLMOD/Partition/libigraph_la-cholmod_metis.lo: \
- CHOLMOD/Partition/cholmod_metis.c

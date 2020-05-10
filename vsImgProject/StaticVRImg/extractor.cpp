@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <omp.h>
 #include "extractor.h"
-#include "constAndTypes.h"
+#include "fileManager.h"
 extern "C" {
     #include "vl/sift.h"
     #include "vl/generic.h"
@@ -16,7 +16,8 @@ extern "C" {
 using namespace std;
 using namespace cv;
 namespace fs = std::filesystem;
-namespace cAt = constandtypes;
+using params = fileManager::parameters;
+
 void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
 {
     clock_t sTime = clock();
@@ -82,7 +83,7 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             int height = grayImg.size().height;
 
 
-            auto vl_sift = vl_sift_new(width, height, cAt::octave, cAt::noctaveLayer, 1);//define vl sift processor
+            auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, 1);//define vl sift processor
             vl_sift_set_edge_thresh(vl_sift, 10);
             vl_sift_set_peak_thresh(vl_sift, 0.04);
 

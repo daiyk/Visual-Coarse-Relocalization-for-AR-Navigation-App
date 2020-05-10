@@ -1,2 +1,0 @@
-CHOLMOD/Partition/libigraph_la-cholmod_nesdis.lo: \
- CHOLMOD/Partition/cholmod_nesdis.c
