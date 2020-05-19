@@ -4,13 +4,12 @@
 #include <fstream>
 #include "helper.h"
 #include <igraph.h>
-#include <nlohmann/json.hpp>
+
 using ArgList = fileManager::ArgList;
 using ArgType = fileManager::ArgType;
 using namespace cv;
 using namespace std;
-namespace fs = std::filesystem;
-using json = nlohmann::json;
+
 
 
 //parameters definitions
@@ -23,28 +22,27 @@ int fileManager::parameters::numOfAttemp = 3; //times of try to compute the cent
 int fileManager::parameters::numOfItera = 20;
 double fileManager::parameters::accuracy = 1e-3;
 
-int fileManager::parameters::minNumDeg = 0;
-int fileManager::parameters::maxNumDeg = -1;
-double fileManager::parameters::radDegLim = std::numeric_limits<double>::infinity();
-
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
 float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
 
 //matching setting
 int fileManager::parameters::numOfNN = 2;
+size_t fileManager::parameters::maxNumDeg = 5; //
+double fileManager::parameters::radDegLim = std::numeric_limits<double>::infinity(); //default infinity
 
 
 void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& kCenters) {
     if (!fs::exists("Result")) {
         fs::create_directories("Result");
     }
-    std::ofstream CSVOutput;
-    int nKpts = kpts.size();
-    CSVOutput.open(std::string("Result/" + name + "_statistics_" + std::to_string(nKpts) + "_" + dateTime() + ".csv"), std::fstream::out | std::fstream::app);
+    
 
     //keypoint write to file
     if (!kpts.empty()) {
+        std::ofstream CSVOutput;
+        int nKpts = kpts.size();
+        CSVOutput.open(std::string("Result/" + name + "_statistics_" + std::to_string(nKpts) + "_" + dateTime() + ".csv"), std::fstream::out | std::fstream::app);
         //input stream for headers
         CSVOutput << "Oritentation" << "," << "Octave" << "," << "layer" << "," << "pt.x" << "," << "pt.y" << "," << "scale" << "\n";
 
@@ -69,7 +67,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
                 << vscale << "\n";
         }
         CSVOutput.close();
-        cout << "->keypoints store finish with octave num: " << max_noctave << endl;
+        cout << "->keypoints store finished with octave num: " << max_noctave << endl;
     }
 
     //write kcenters to files
@@ -237,13 +235,19 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
     //TODO: function for read other types of arg inputs
 }
 
+//warning handler that disable warning when write to graphML
+void null_warning_handler(const char* reason, const char* file, int line, int igraph_errno) {
+
+}
 
 void fileManager::write_graph(igraph_t& graph, string name, string mode) {
     std::string fileName = name + "_" + dateTime();
     if (mode == "graphml") {
         FILE* graph_writer = fopen((fileName + ".graphml").c_str(), "w");
-
+        igraph_warning_handler_t *warning;
+        warning = igraph_set_warning_handler(null_warning_handler);
         igraph_write_graph_graphml(&graph, graph_writer, true);
+        igraph_set_warning_handler(warning);
     }
     else {
         std::cout << "write graph: unsupported graph saving mode" << std::endl;
@@ -251,12 +255,12 @@ void fileManager::write_graph(igraph_t& graph, string name, string mode) {
     }
 }
 
-void fileManager::read_user_set(fs::path& params) {
+json fileManager::read_user_set(fs::path& params) {
 
     //read path
     json jsonlist;
     if (!fs::exists(params)) {
-        cout << "Read Params: provided imgs path doesn't exist!" << endl;
+        cout << "Read Params: provided user setting .json doesn't exist!" << endl;
         throw std::invalid_argument("PATH_NOT_EXIST");
     }
 
@@ -277,7 +281,7 @@ void fileManager::read_user_set(fs::path& params) {
     fileManager::parameters::accuracy = jsonlist.value("accuracy", fileManager::parameters::accuracy);
     fileManager::parameters::MATCH_THRES = jsonlist.value("MATCH_THRES", fileManager::parameters::MATCH_THRES);
     fileManager::parameters::numOfNN = jsonlist.value("numOfNN", fileManager::parameters::numOfNN);
-    fileManager::parameters::minNumDeg = jsonlist.value("minNumDeg", fileManager::parameters::minNumDeg);
     fileManager::parameters::maxNumDeg = jsonlist.value("maxNumDeg", fileManager::parameters::maxNumDeg);
     fileManager::parameters::radDegLim = jsonlist.value("radDegLim", fileManager::parameters::radDegLim);
+    return jsonlist;
 }

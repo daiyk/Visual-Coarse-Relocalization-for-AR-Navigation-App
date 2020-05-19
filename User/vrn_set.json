@@ -1,0 +1,14 @@
+{
+  "octave": 8,
+  "noctaveLayer": 3,
+  "octave_start": 1,
+  "sigma_0": 1.6,
+  "centers": 200,
+  "numOfAttemp": 3,
+  "numOfItera": 20,
+  "accuracy": 0.001,
+  "MATCH_THRES": 0.7,
+  "numOfNN": 2,
+  "maxNumDeg": 5,
+  "radDegLim": -1
+}

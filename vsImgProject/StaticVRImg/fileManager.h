@@ -7,7 +7,8 @@
 #include <opencv2/core.hpp>
 #define IGRAPH_STATIC 1
 #include "igraph.h"
-
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 namespace fs = std::filesystem;
 namespace fileManager {
 	enum class ArgType {
@@ -45,13 +46,12 @@ namespace fileManager {
 		//matching setting
 		static int numOfNN;
 
-		static int minNumDeg;
-		static int maxNumDeg;
-		static double radDegLim;
+		static size_t maxNumDeg;
+		static double radDegLim; //the radius limits for edge connection, limits the edge < radDegLim*pts.scale
 	};
 	ArgList funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths, const char* keys);
 	void write_to_file(std::string name, std::vector<cv::KeyPoint>& kpts, cv::Mat& kCenters);
 	void write_graph(igraph_t& graph, std::string name, std::string mode);
-	void read_user_set(fs::path& params);
+	json read_user_set(fs::path& params);
 }
 #endif // 

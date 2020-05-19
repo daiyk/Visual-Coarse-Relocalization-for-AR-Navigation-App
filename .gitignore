@@ -56,3 +56,4 @@ ipch/
 *.vsp
 *.vspx
 shareedit
+*.graphml

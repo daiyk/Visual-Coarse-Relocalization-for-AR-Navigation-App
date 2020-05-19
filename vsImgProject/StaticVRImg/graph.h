@@ -7,7 +7,7 @@
 namespace graph {
 	void graphTest();
 	bool buildFull(igraph_t &graph, int n, bool directed = false);
-	bool build(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>& kpts);
+	bool build(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>& kpts, igraph_t& graph);
 }
 
 #endif
