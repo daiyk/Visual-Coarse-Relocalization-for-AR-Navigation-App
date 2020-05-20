@@ -2,6 +2,7 @@
 #include "StaticVRImg/extractor.h"
 #include "StaticVRImg/fileManager.h"
 #include "StaticVRImg/matcher.h"
+#include "StaticVRImg/kernel.h"
 #include <opencv2/core.hpp>
 #include <igraph.h>
 #include <Eigen/Core>
@@ -52,8 +53,73 @@ void readUserTest() {
 	std::cout << "read the actual params"<<fileManager::parameters::maxNumDeg << std::endl << fileManager::parameters::numOfAttemp << std::endl;
 
 }
+
+void graphKernelTest() {
+	
+	auto sTime = clock();
+	igraph_t testGraph;
+	igraph_empty(&testGraph, 6, IGRAPH_UNDIRECTED);
+	igraph_vector_t e;
+	igraph_real_t edges[] = { 0,1,1,4,1,5,1,2,2,3,3,4,4,5 };
+	igraph_vector_view(&e, edges, sizeof(edges) / sizeof(double));
+	igraph_create(&testGraph, &e, 0, IGRAPH_UNDIRECTED);
+
+	//add labels
+	std::vector<int> labstd{ 2,1,3,1,5,1 };
+	std::vector<double> labstd_vec(labstd.begin(), labstd.end());
+	igraph_vector_t lab_vec;
+	
+	igraph_vector_view(&lab_vec, labstd_vec.data(), 6);
+
+	igraph_cattribute_VAN_setv(&testGraph, "label", &lab_vec);
+
+	//defines the kernel class
+	kernel::robustKernel kernelObj(2, 6);
+	kernelObj.push_back(testGraph);
+	kernelObj.push_back(testGraph);
+	auto k_matrix = kernelObj.robustKernelCom();
+
+	std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
+
+	int cols = igraph_matrix_ncol(&k_matrix);
+	int rows = igraph_matrix_nrow(&k_matrix);
+	for (int i = 0; i < cols; i++) {
+		std::cout << std::endl;
+		for (int j = 0; j < rows; j++) {
+			std::cout << MATRIX(k_matrix, i, j)<<"\t";
+		}
+	}
+	
+
+
+	//test with old functions
+	sTime = clock();
+	Eigen::MatrixXi E(7,3);
+	Eigen::MatrixXd k_mat;
+	E << 0, 1, 1, 1, 4, 1, 1, 5, 1, 1, 2, 1, 2, 3, 1, 3, 4, 1, 4, 5, 1;
+	
+	std::vector<int> num_v{6,6};
+	std::vector<int> num_e{ 7,7 };
+	int h_max = 2;
+	std::vector<std::vector<int>> labsstd;
+	labsstd.push_back(labstd);
+	labsstd.push_back(labstd);
+	std::vector<Eigen::MatrixXi> Es;
+	Es.push_back(E);
+	Es.push_back(E);
+
+	
+	kernel::robustKernel::wlRobustKernel(Es, labsstd, num_v, num_e, h_max, k_mat);
+
+	std::cout << " -> old funcs spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
+	std::cout << std::endl<<k_mat;
+	
+
+
+}
 int main(int argc, const char* argv[]) {
-	readUserTest();
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	graphKernelTest();
 }
 
 

@@ -15,18 +15,16 @@ using namespace std;
 using namespace Eigen;
 
 
-kernel::robustKernel::robustKernel(igraph_t &mygraph,int h_max, size_t n_labels):h_max(h_max),n_labels(n_labels) {
+kernel::robustKernel::robustKernel(int h_max, size_t n_labels):h_max(h_max),n_labels(n_labels) {
 
 }
 
 kernel::robustKernel::~robustKernel() {
-    for (auto& it : graphs) {
-        igraph_destroy(&it);
-    }
 }
 
 void kernel::robustKernel::push_back(igraph_t& newgraph) {
     this->graphs.push_back(newgraph);
+    this->graphPrepro(newgraph);
 }
 
 void kernel::robustKernel::graphPrepro(igraph_t& graph) {
@@ -39,13 +37,6 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph) {
     VANV(&graph, "label", &labels);
 
     size_t edgeLen = igraph_vector_size(&edges);
-    /*MatrixXd edgesMat(edgeLen / 2, 2);
-
-    for (size_t i = 0; i < edgeLen / 2; i++)
-    {
-        edgesMat(i, 0) = VECTOR(edges)[i];
-        edgesMat(i, 1) = VECTOR(edges)[i + edgeLen / 2];
-    }*/
 
     //build inverted indices
     unordered_map<int, vector<size_t>> inverted_index;
@@ -75,6 +66,8 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
     igraph_t& graph_i = this->graphs[i];
     igraph_t& graph_j = this->graphs[j];
     //compute the edge norm
+
+    //?? edge norm should be obatained from edge weight computation  
     double edge_norm1 = 1.0 / this->edge_nums[i];
     double edge_norm2 = 1.0 / this->edge_nums[j];
     //iterate through the two sets of vertices and compute the kernel values
@@ -90,18 +83,20 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
         igraph_vector_t nei1_vec;
         igraph_vector_init(&nei1_vec, this->n_labels);
         for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
-            VECTOR(nei1_vec)[VECTOR(nei1_lab)[m]] += edge_norm1;
+            VECTOR(nei1_vec)[(int)VECTOR(nei1_lab)[m]] += edge_norm1;
         }
         for (size_t j = 0; j < vert2.size(); j++) {
             igraph_vs_t vert2_nei;
+            igraph_vs_adj(&vert2_nei, vert2[j], IGRAPH_ALL);
             igraph_cattribute_VANV(&graph_j, "label", vert2_nei, &nei2_lab);
 
             //create the nei vector
             igraph_vector_t nei2_vec;
             igraph_vector_init(&nei2_vec, this->n_labels);
             for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
-                VECTOR(nei2_vec)[VECTOR(nei2_lab)[n]] += edge_norm2;
+                VECTOR(nei2_vec)[(int)VECTOR(nei2_lab)[n]] += edge_norm2;
             }
+
 
             //multiple two vector and get the kernel value
             igraph_vector_mul(&nei2_vec, &nei1_vec);
@@ -117,6 +112,8 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
 
     igraph_vector_destroy(&nei1_lab);
     igraph_vector_destroy(&nei2_lab);
+
+    //debug
 
     return *max_element(kernelVals.begin(), kernelVals.end());
 }
@@ -158,6 +155,7 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     for (int h = 0; h < h_max; h++) {
         //iterate over all stored graphs
         for (int i = 0; i < n_graphs; i++) {
+            //start from i to avoid multicount the values?? but set to start from 0 for the probability in range [0,1]
             for (int j = 0; j < n_graphs; j++) {
                 auto& inv1 = this->inverted_indices[i];
                 auto& inv2 = this->inverted_indices[j];
@@ -183,7 +181,7 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     for (int i = 0; i < n_graphs; i++) {
         sum_self_kernel += MATRIX(k_matrix, i, i);
     }
-    igraph_matrix_scale(&k_matrix, sum_self_kernel);
+    igraph_matrix_scale(&k_matrix, 1.0/sum_self_kernel);
     return k_matrix;
 }
 
@@ -332,6 +330,7 @@ void kernel::robustKernel::wlRobustKernel(vector<MatrixXi>& E, vector<vector<int
             }
         }
     }
+
     //the kernel value of each graph to itself, k_mat(i,i) is counted twice, thus need to get back
     K_mat.diagonal() /= 2;
 

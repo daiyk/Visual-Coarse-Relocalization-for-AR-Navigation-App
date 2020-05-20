@@ -80,8 +80,8 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_real_t* scales = scls.data();
 	//allocate word label to query nodes
 	for (size_t i = 0; i < n_vertices;i++) {
-		labels[matches[i].queryIdx] = matches[i].trainIdx;
-		scales[matches[i].queryIdx] = kpts[matches[i].queryIdx].size;
+		labs[matches[i].queryIdx] = matches[i].trainIdx;
+		scls[matches[i].queryIdx] = kpts[matches[i].queryIdx].size;
 	}
 	//igraph add labels and degrees attributes 
 	igraph_vector_t lab_vec, edge_vec,scale_vec;
