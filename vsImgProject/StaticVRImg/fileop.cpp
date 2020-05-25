@@ -13,14 +13,16 @@ using namespace std;
 
 
 //parameters definitions
-int fileManager::parameters::octave= 8;
+int fileManager::parameters::octave = -1; //default to -1 to compute every possible octave: log2(min(width,height))
 int fileManager::parameters::noctaveLayer = 3; // scale layers per octave
-int fileManager::parameters::octave_start = 1; // learning start from 1th octave, -1 for more details
+int fileManager::parameters::firstOctaveInd = -1; // learning start from 1th octave, -1 for more details
 double fileManager::parameters::sigma_0 = 1.6; // sigma for the #0 octave
 int fileManager::parameters::centers = 200;    // k-means center detection, defines the number of centers
 int fileManager::parameters::numOfAttemp = 3; //times of try to compute the center for each cluster, five times to choose the best one
 int fileManager::parameters::numOfItera = 20;
 double fileManager::parameters::accuracy = 1e-3;
+double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
+double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
 
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
@@ -74,7 +76,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
     if (!kCenters.empty()) {
         cv::FileStorage filewriter("Result/" + name + "_kmeansCenter.yml", cv::FileStorage::WRITE);
         filewriter << "kcenters" << kCenters;
-        cout << "->visual words are written to file kmeansCenter.yml......" << endl;
+        cout << "->visual words are written to file "<<name<<"_kmeansCenter.yml......" << endl;
     }
 }
 
@@ -153,7 +155,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
                 if (idx != std::string::npos)
                 {
                     std::string extension = entry.path().string().substr(idx + 1);
-                    if (extension == "jpg") {
+                    if (extension == "jpg"|| extension == "JPG"|| extension == "JPEG") {
                         testFilePaths.push_back(entry.path().string());
                         cout << "Mode Train: Testing img is added and found at: " << entry.path().string() << "......" << endl;
                     }
@@ -170,12 +172,12 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
             if (idx != std::string::npos)
             {
                 std::string extension = entry.path().string().substr(idx + 1);
-                if (extension == "jpg") {
+                if (extension == "jpg" || extension == "JPG" || extension == "JPEG") {
                     trainFilePaths.push_back(entry.path().string());
                     cout << "Mode Train: img is added and found at: " << entry.path().string() << "......" << endl;
                 }
                 else {
-                    cout << "Mode Train: img " + entry.path().string() + ": Extension" + extension + " is not supported dismiss the image" << endl;
+                    cout << "Mode Train: img " + entry.path().string() + ": Extension " + extension + " is not supported dismiss the image" << endl;
                 }
             }
         }
@@ -183,7 +185,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
     }
     else if (mode=="demo") {   
         fs::path img = parser.get<String>("path");
-        if (!img.empty() && !fs::exists(img)) {
+        if (img.empty() || !fs::exists(img)) {
             throw std::invalid_argument("Mode Demo: ERROR: provided path is not a valid image.");
         }
 
@@ -195,7 +197,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
         if (idx != std::string::npos)
         {
             std::string extension = img.string().substr(idx + 1);
-            if (extension == "jpg") {
+            if (extension == "jpg" || extension == "JPG" || extension == "JPEG") {
                 trainFilePaths.push_back(img.string());
                 cout << "Mode Demo: img is added and found at: " << img.string() << "......" << endl;
             }
@@ -241,9 +243,12 @@ void null_warning_handler(const char* reason, const char* file, int line, int ig
 }
 
 void fileManager::write_graph(igraph_t& graph, string name, string mode) {
+    if (!fs::exists("Result")) {
+        fs::create_directories("Result");
+    }
     std::string fileName = name + "_" + dateTime();
     if (mode == "graphml") {
-        FILE* graph_writer = fopen((fileName + ".graphml").c_str(), "w");
+        FILE* graph_writer = fopen(("Result/"+fileName + ".graphml").c_str(), "w");
         igraph_warning_handler_t *warning;
         warning = igraph_set_warning_handler(null_warning_handler);
         igraph_write_graph_graphml(&graph, graph_writer, true);
@@ -255,7 +260,7 @@ void fileManager::write_graph(igraph_t& graph, string name, string mode) {
     }
 }
 
-json fileManager::read_user_set(fs::path& params) {
+void fileManager::read_user_set(fs::path& params) {
 
     //read path
     json jsonlist;
@@ -273,7 +278,7 @@ json fileManager::read_user_set(fs::path& params) {
     f >> jsonlist;
     fileManager::parameters::octave = jsonlist.value("octave", fileManager::parameters::octave);
     fileManager::parameters::noctaveLayer = jsonlist.value("noctaveLayer", fileManager::parameters::noctaveLayer);
-    fileManager::parameters::octave_start = jsonlist.value("octave_start", fileManager::parameters::octave_start);
+    fileManager::parameters::firstOctaveInd = jsonlist.value("firstOctaveInd", fileManager::parameters::firstOctaveInd);
     fileManager::parameters::sigma_0 = jsonlist.value("sigma_0", fileManager::parameters::sigma_0);
     fileManager::parameters::centers = jsonlist.value("centers", fileManager::parameters::centers);
     fileManager::parameters::numOfAttemp = jsonlist.value("numOfAttemp", fileManager::parameters::numOfAttemp);
@@ -283,5 +288,6 @@ json fileManager::read_user_set(fs::path& params) {
     fileManager::parameters::numOfNN = jsonlist.value("numOfNN", fileManager::parameters::numOfNN);
     fileManager::parameters::maxNumDeg = jsonlist.value("maxNumDeg", fileManager::parameters::maxNumDeg);
     fileManager::parameters::radDegLim = jsonlist.value("radDegLim", fileManager::parameters::radDegLim);
-    return jsonlist;
+    fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
+    fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
 }

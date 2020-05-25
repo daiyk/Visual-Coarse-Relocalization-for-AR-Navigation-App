@@ -4,6 +4,7 @@
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/kernel.h"
 #include <opencv2/core.hpp>
+#include <filesystem>
 #include <igraph.h>
 #include <Eigen/Core>
 #include <algorithm>
@@ -11,7 +12,17 @@
 #include <numeric>
 #include <string>
 #include <nlohmann/json.hpp>
-
+void filecreate() {
+	std::filesystem::path curPath = std::filesystem::current_path();
+	std::filesystem::path resultPath;
+	for (auto it : std::filesystem::recursive_directory_iterator(curPath)) {
+		if (it.path().stem().string() == "vsImgProject") {
+			resultPath = it.path();
+			break;
+		}
+	}
+	std::filesystem::create_directory(resultPath.parent_path() / "Result");
+}
 int graphbuildTest(int argc, const char* argv[]) {
 	//graph::graphTest();
 	//test 
@@ -46,11 +57,11 @@ int graphbuildTest(int argc, const char* argv[]) {
 void readUserTest() {
 	std::string usersetting = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json";
 	fs::path userset(usersetting);
-	json testList =  fileManager::read_user_set(userset);
-	std::string dumprel = testList.dump();
+	fileManager::read_user_set(userset);
+	/*std::string dumprel = testList.dump();
 	std::cout << dumprel << std::endl;
 
-	std::cout << "read the actual params"<<fileManager::parameters::maxNumDeg << std::endl << fileManager::parameters::numOfAttemp << std::endl;
+	std::cout << "read the actual params"<<fileManager::parameters::maxNumDeg << std::endl << fileManager::parameters::numOfAttemp << std::endl;*/
 
 }
 
@@ -113,13 +124,75 @@ void graphKernelTest() {
 
 	std::cout << " -> old funcs spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
 	std::cout << std::endl<<k_mat;
-	
+}
 
+void graphBuildPlusKernelTest(int argc, const char* argv[]) {
+	if (argc < 3) {
+		std::cout << "Please provides path to the dictionary and image!" << std::endl;
+	}
+
+	//read and build graph for the first test image
+	cv::FileStorage reader;
+	reader.open(argv[1], cv::FileStorage::READ);
+	if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; }
+	//read kcenters
+	cv::Mat kCenters;
+	reader["kcenters"] >> kCenters;
+	reader.release();
+	//do matching on the two test image 
+	std::string testImg1(argv[2]);
+	std::vector<std::string> trainPath;
+	trainPath.push_back(testImg1);
+	cv::Mat descripts1;
+	std::vector<cv::KeyPoint> kpts1;
+	extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
+	//do kd-tree on the source descriptors
+	std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
+	igraph_t mygraph1;
+	bool status = graph::build(matches, kpts1, mygraph1);
+	if (!status) { std::cout << "graph build failed! check your function." << std::endl;}
+
+	fileManager::write_graph(mygraph1, "testimg1", "graphml");
+	trainPath.pop_back();
+
+
+	//read and build graph for the second test image
+	//do matching on the two test image 
+	std::string testImg2(argv[3]);
+	trainPath.push_back(testImg2);
+	cv::Mat descripts2;
+	std::vector<cv::KeyPoint> kpts2;
+	extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
+	//do kd-tree on the source descriptors
+	matches = matcher::kdTree(kCenters, descripts2);
+	igraph_t mygraph2;
+	status = graph::build(matches, kpts2, mygraph2);
+	if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+	fileManager::write_graph(mygraph2, "testimg2", "graphml");
+
+	auto sTime = clock();
+
+	//add to the graph bags and compute the matching score
+	kernel::robustKernel kernelObj(2, kCenters.rows);
+	kernelObj.push_back(mygraph1);
+	kernelObj.push_back(mygraph2);
+
+	std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
+	auto resMat = kernelObj.robustKernelCom();
+	int cols = igraph_matrix_ncol(&resMat);
+	int rows = igraph_matrix_nrow(&resMat);
+	for (int i = 0; i < cols; i++) {
+		std::cout << std::endl;
+		for (int j = 0; j < rows; j++) {
+			std::cout << MATRIX(resMat, i, j) << "\t";
+		}
+	}
 
 }
+
 int main(int argc, const char* argv[]) {
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
-	graphKernelTest();
+	graphBuildPlusKernelTest(argc, argv);
 }
 
 

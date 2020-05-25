@@ -20,7 +20,7 @@ const char* keys =
 "{ help h |                  | Print help message. }"
 "{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
 "{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
-"{ path   |                  | Path to the training image folder, learning visual words, not compatable with input1/2 }";
+"{ path   |                  | Path to the image folder, set mode for different processing ways }";
 
 int main(int argc, const char* argv[]) {
     VL_PRINT("!------- staticVRImg Lib Function Test Program Starts! ------!\n");
@@ -28,6 +28,8 @@ int main(int argc, const char* argv[]) {
     for (int i = 1; i < argc; i++) {
         cout << " ->" << argv[i] << endl;
     }
+    filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
+    fileManager::read_user_set(user_set);
     std::vector<std::string> trainPaths, testPaths;
     fileManager::ArgList readResult;
     Mat allDescrips, kCenters;

@@ -82,10 +82,12 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             int width = grayImg.size().width;
             int height = grayImg.size().height;
 
-
-            auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, 1);//define vl sift processor
-            vl_sift_set_edge_thresh(vl_sift, 10);
-            vl_sift_set_peak_thresh(vl_sift, 0.04);
+            if (params::octave == -1) {
+                int noctave = log2(min(width, width));
+            }
+            auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
+            vl_sift_set_edge_thresh(vl_sift, params::siftEdgeThres);
+            vl_sift_set_peak_thresh(vl_sift, params::siftPeakThres);
 
             grayImg.convertTo(grayImgFl, CV_32F, 1.0 / 255.0);
 

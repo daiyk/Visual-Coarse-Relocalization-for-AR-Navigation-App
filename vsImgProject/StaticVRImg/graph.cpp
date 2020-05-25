@@ -75,22 +75,30 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 
 	/*igraph_real_t *labels = (igraph_real_t*)malloc(sizeof(igraph_real_t)*n_vertices);
 	igraph_real_t* scales = (igraph_real_t*)malloc(sizeof(igraph_real_t) * n_vertices); */// change it to std vector
-	std::vector<igraph_real_t> labs(n_vertices), scls(n_vertices);
+	std::vector<igraph_real_t> labs(n_vertices), scls(n_vertices),posx(n_vertices),posy(n_vertices);
 	igraph_real_t* labels = labs.data();
 	igraph_real_t* scales = scls.data();
+	igraph_real_t* positionx = posx.data();
+	igraph_real_t* positiony = posy.data();
 	//allocate word label to query nodes
 	for (size_t i = 0; i < n_vertices;i++) {
 		labs[matches[i].queryIdx] = matches[i].trainIdx;
-		scls[matches[i].queryIdx] = kpts[matches[i].queryIdx].size;
+		scls[i] = kpts[i].size;
+		posx[i] = kpts[i].pt.x;
+		posy[i] = kpts[i].pt.y;
 	}
 	//igraph add labels and degrees attributes 
-	igraph_vector_t lab_vec, edge_vec,scale_vec;
+	igraph_vector_t lab_vec, edge_vec,scale_vec,posx_vec,posy_vec;
 	igraph_vector_view(&lab_vec, labels, n_vertices);
 	igraph_vector_view(&scale_vec, scales, n_vertices);
+	igraph_vector_view(&posx_vec, positionx, n_vertices);
+	igraph_vector_view(&posy_vec, positiony, n_vertices);
 	/*igraph_vector_init(&deg_vec, n_vertices);*/
 
 	SETVANV(&mygraph, "label", &lab_vec);
 	SETVANV(&mygraph, "scale", &scale_vec);
+	SETVANV(&mygraph, "posx", &posx_vec);
+	SETVANV(&mygraph, "posy", &posy_vec);
 	/*SETVANV(&mygraph, "degree", &deg_vec);*/
 	
 	//add edge
@@ -109,8 +117,6 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_add_edges(&mygraph, &edge_vec, 0);
 
 	igraph_simplify(&mygraph, true, true, 0);
-	free(labels);
-	free(scales);
 	std::cout << " ->graph building spend " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec...." << std::endl;
 	return true;
 

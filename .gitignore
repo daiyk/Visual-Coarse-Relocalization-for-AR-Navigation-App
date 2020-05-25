@@ -3,6 +3,7 @@
 
 # data files
 imgs/*
+Result/*
 
 *.jpg
 *.exe
@@ -57,3 +58,4 @@ ipch/
 *.vspx
 shareedit
 *.graphml
+*.json
