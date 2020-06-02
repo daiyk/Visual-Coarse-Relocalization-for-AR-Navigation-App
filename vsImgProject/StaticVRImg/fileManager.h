@@ -38,6 +38,7 @@ namespace fileManager {
 		static int numOfAttemp; //times of try to compute the center for each cluster, five times to choose the best one
 		static int numOfItera;
 		static double accuracy;
+		static double distRat;
 		static double siftEdgeThres;
 		static double siftPeakThres;
 
@@ -46,8 +47,10 @@ namespace fileManager {
 		static float MATCH_THRES; //define the threshold for matching 
 
 		//matching setting
-		static int numOfNN;
+		static int numOfNN; // number of nearest neighbors extracted from kdtree comparison 
+		static int maxNumComp; // maximum number of comparison during kdtree searching
 
+		//graph building relevent setting
 		static size_t maxNumDeg;
 		static double radDegLim; //the radius limits for edge connection, limits the edge < radDegLim*pts.scale
 	};

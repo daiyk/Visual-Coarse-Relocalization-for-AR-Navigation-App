@@ -53,7 +53,7 @@ void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& 
             }
         }
     }
-    cout << "-> openCV SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+    cout << "   -> openCV SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 
 void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& cv_keypoints)
@@ -69,15 +69,18 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
         #pragma omp for schedule(dynamic)
         for (int i = 0; i < num_imgs; i = i + 1) {
             // int minHessian = 400; // for SURF detector only
-            Mat grayImg;
+            Mat grayImg,ImgResize;
             Mat grayImgFl;
             Mat1f imgDescrips;
             if (!fs::exists(fs::path(paths[i]))) {
-                cout << "Warning: " << paths[i] << "does not exist!" << endl;
+                cout << "Warning: " << paths[i] << " does not exist!" << endl;
                 continue;
             }
             cvtColor(cv::imread(paths[i]), grayImg, COLOR_BGR2GRAY);
 
+            //resize image
+            cv::resize(grayImg, ImgResize, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
+            grayImg = ImgResize;
             //surf to detect and compute
             int width = grayImg.size().width;
             int height = grayImg.size().height;
@@ -151,7 +154,8 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
 
         }
     }
-    cout << "->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+    cout << "    -> total " << allDescripts.size() << " descriptors are created during the session" << endl;
+    cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 
 

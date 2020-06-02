@@ -38,7 +38,7 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
     float* data = allDescrip.ptr<float>(0);
     //check kmeans setting
     if (params::centers > allDescrip.rows) {
-        std::cout << "Kmeans: centers number exceeds the descriptor's number reset the centers to " << allDescrip.rows << " centers instead" << endl;
+        std::cout << "Kmeans: centers number exceeds the descriptor's number reset the No.centers to " << allDescrip.rows << " instead" << endl;
         params::centers = allDescrip.rows;
     }
     vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, params::centers);

@@ -1,6 +1,6 @@
 #pragma once
-#ifndef _CLUSTER_H
-#define _CLUSTER_H
+#ifndef _KERNEL_H
+#define _KERNEL_H
 #define IGRAPH_STATIC 1
 #include <igraph.h>
 #include <iostream>

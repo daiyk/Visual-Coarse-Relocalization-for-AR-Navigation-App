@@ -20,9 +20,11 @@ std::vector<DMatch> matcher::kdTree(Mat& source, Mat& query) {
         throw std::runtime_error("ERROR: source descriptors or query descriptor are not continuous, matching function terminated");
     }
     std::vector<DMatch> matches;
+    std::cout << "start building kd-tree for matching......" << std::endl;
     //kd-tree building
     int dim = 128;
-    VlKDForest* tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, 1, VlDistanceL2);
+    int numOfTree = 1;
+    VlKDForest* tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
 
     //start building tree build from the first image
     int numWords = source.rows;
@@ -32,22 +34,29 @@ std::vector<DMatch> matcher::kdTree(Mat& source, Mat& query) {
     vl_kdforest_build(tree, numWords, source.ptr<float>(0));
 
     //set searcher
-    vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
-    float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);
+    //use std vector instead
+
+    std::vector<vl_uint32> NNs(params::numOfNN * numQuery);
+    std::vector<float> NNdist(params::numOfNN * numQuery);
+
+    //vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
+    //float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);
 
     VlKDForestSearcher* searcher = vl_kdforest_new_searcher(tree);
     vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
+    vl_kdforest_set_max_num_comparisons(tree, params::maxNumComp); // set max num of comparison
+    int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), params::numOfNN, numQuery, NNdist.data(), query.ptr<float>(0));
+    std::cout << " -> total number of " << numOfleaf << " leafs are visited during kd-tree building" << std::endl;
 
-    int numOfleaf = vl_kdforest_query_with_array(tree, NNs, 2, numQuery, NNdist, query.ptr<float>(0));
-
-    std::cout << " -> total number of " << numOfleaf << " leafs are visited" << std::endl;
-    //draw matches
-
-    //build Dmatches
+    //build Dmatches and check the distance ratio to avoid false matching
     for (int i = 0; i < numQuery; i++)
     {
-        DMatch match = DMatch(i, NNs[params::numOfNN * i], NNdist[params::numOfNN * i]);
-        matches.push_back(match);
+        //compare the first and second nn distance
+        double one2TwoNN = NNdist[params::numOfNN * i] / NNdist[params::numOfNN * i + 1];
+        if (one2TwoNN <= params::distRat) { //use distance ratio to filter the matching keypoints
+            DMatch match = DMatch(i, NNs[params::numOfNN * i], NNdist[params::numOfNN * i]);
+            matches.push_back(match);
+        }
     }
     return matches;
 }

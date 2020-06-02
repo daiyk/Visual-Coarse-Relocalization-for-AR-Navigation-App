@@ -18,7 +18,7 @@ using namespace cv;
 
 const char* keys =
 "{ help h |                  | Print help message. }"
-"{ tool   |      both        | Lib used for SIFT, OpenCV or VLFeat, default both. }"
+"{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
 "{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
 "{ path   |                  | Path to the image folder, set mode for different processing ways }";
 

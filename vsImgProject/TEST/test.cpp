@@ -4,6 +4,9 @@
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/kernel.h"
 #include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/imgproc.hpp>
 #include <filesystem>
 #include <igraph.h>
 #include <Eigen/Core>
@@ -12,6 +15,18 @@
 #include <numeric>
 #include <string>
 #include <nlohmann/json.hpp>
+#include <fstream>
+#include "StaticVRImg/cluster.h"
+
+//test keywords
+const char* keys =
+"{ help h |                  | Print help message. }"
+"{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
+"{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
+"{ path   |                  | Path to the image folder, set mode for different processing ways }";
+
+
+
 void filecreate() {
 	std::filesystem::path curPath = std::filesystem::current_path();
 	std::filesystem::path resultPath;
@@ -126,6 +141,11 @@ void graphKernelTest() {
 	std::cout << std::endl<<k_mat;
 }
 
+/*
+*	arg1: path to the kcenter file, stored as yml
+*	arg2: path to image1 that does the image matching
+*	arg3: path to image2 that does the image matching
+*/
 void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 	if (argc < 3) {
 		std::cout << "Please provides path to the dictionary and image!" << std::endl;
@@ -146,13 +166,16 @@ void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 	cv::Mat descripts1;
 	std::vector<cv::KeyPoint> kpts1;
 	extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
+	/*extractor::openCVimg_descips_compute(trainPath, descripts1, kpts1);*/
 	//do kd-tree on the source descriptors
 	std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
 	igraph_t mygraph1;
 	bool status = graph::build(matches, kpts1, mygraph1);
 	if (!status) { std::cout << "graph build failed! check your function." << std::endl;}
 
-	fileManager::write_graph(mygraph1, "testimg1", "graphml");
+	//use the filename as graph name
+	std::string graphName1 = fs::path(testImg1).stem().string();
+	fileManager::write_graph(mygraph1, graphName1, "graphml");
 	trainPath.pop_back();
 
 
@@ -163,12 +186,14 @@ void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 	cv::Mat descripts2;
 	std::vector<cv::KeyPoint> kpts2;
 	extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
+	/*extractor::openCVimg_descips_compute(trainPath, descripts2, kpts2);*/
 	//do kd-tree on the source descriptors
 	matches = matcher::kdTree(kCenters, descripts2);
 	igraph_t mygraph2;
 	status = graph::build(matches, kpts2, mygraph2);
 	if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-	fileManager::write_graph(mygraph2, "testimg2", "graphml");
+	std::string graphName2 = fs::path(testImg2).stem().string();
+	fileManager::write_graph(mygraph2, graphName2, "graphml");
 
 	auto sTime = clock();
 
@@ -190,9 +215,153 @@ void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 
 }
 
+//dictionary test for different sets of visual words
+int dictTest(int argc, const char* argv[]) {
+
+	std::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
+	std::ofstream CSVOutput;
+	CSVOutput.open("graph_comparison.csv", std::fstream::out | std::fstream::app);
+	CSVOutput << "centerNo" << "," << "similarScore" << "\n";
+	fileManager::read_user_set(user_set);
+	std::vector<std::string> trainPaths, testPaths;
+	fileManager::ArgList readResult;
+	cv::Mat allDescrips, kCenters;
+	std::vector<cv::KeyPoint> keypoints;
+	try
+	{
+		readResult = fileManager::funTestRead(argc, argv, trainPaths, testPaths, keys);
+	}
+	catch (const std::invalid_argument& msg)
+	{
+		std::cout << "Exception:" << msg.what() << std::endl;
+		return 0;
+	}
+	std::cout << "->total files found: " << trainPaths.size() + testPaths.size() << std::endl;
+
+	std::cout<<"!------- Start feature detection with OpenCV and VLFeat ------!\n";
+	if (readResult.tool == fileManager::ArgType::TOOL_VLFEAT || readResult.tool == fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT) {
+		std::cout<<"!------- VLFeat ------!\n";
+		clock_t sTime = clock();
+		//start vlfeat sift feature detection
+		try {
+			extractor::vlimg_descips_compute(trainPaths, allDescrips, keypoints);
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			return 0;
+		};		
+		//demo
+		std::cout << "-> vlfeat SIFT detection / Kmeans learning totally spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << std::endl;
+	}
+	//openCV pipeline
+	if (readResult.tool == fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT || readResult.tool == fileManager::ArgType::TOOL_OPENCV) {
+		std::cout<<"!------- OpenCV ------!\n";
+		clock_t sTime = clock();
+		try {
+			extractor::openCVimg_descips_compute(trainPaths, allDescrips, keypoints);
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			return 0;
+		}
+	
+	}
+	
+	//test different kcenters num
+	std::vector<int> centerNums = {100,150,200,250};
+	clock_t sTime = clock();
+	for (auto i : centerNums) {
+		fileManager::parameters::centers = i;
+		if (readResult.tool == fileManager::ArgType::TOOL_VLFEAT && readResult.mode == fileManager::ArgType::MODE_TRAIN) {
+			//train k-means classifier
+			//free memory since keypoints during training is not useful 
+			std::vector <cv::KeyPoint >().swap(keypoints);
+			cluster::vl_visual_word_compute(allDescrips, kCenters);
+		}
+		//kmeans visual word computing by openCV
+		if (readResult.tool == fileManager::ArgType::TOOL_OPENCV && readResult.mode == fileManager::ArgType::MODE_TRAIN) {
+			std::vector<cv::KeyPoint>().swap(keypoints);
+			cluster::openCV_visual_words_compute(allDescrips, kCenters);
+		}
+		std::cout << "-> opencv SIFT detection / Kmeans learning totally spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << std::endl;
+		//write important data to file
+
+
+		if (readResult.mode == fileManager::ArgType::DEFAULT || readResult.tool == fileManager::ArgType::DEFAULT) {
+			std::cout << "ERROR: unsupported arguments list" << std::endl;
+		}
+
+		//use kcenters for dictionary building
+		//do matching on the two test image 
+		std::string testImg1 = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\imgs\\simple\\test\\IMG_20200527_145625.jpg";
+		std::string testImg2 = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\imgs\\simple\\test\\IMG_20200527_145701.jpg";
+
+		std::vector<std::string> testImgPath;
+		testImgPath.push_back(testImg1);
+		cv::Mat descripts1;
+		std::vector<cv::KeyPoint> kpts1;
+
+		if (readResult.tool == fileManager::ArgType::TOOL_OPENCV) {
+			extractor::openCVimg_descips_compute(testImgPath, descripts1, kpts1);
+		}
+		else {
+			extractor::vlimg_descips_compute(testImgPath, descripts1, kpts1);
+		}
+		//do kd-tree on the source descriptors
+		std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
+		igraph_t mygraph1;
+		bool status = graph::build(matches, kpts1, mygraph1);
+		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+
+		fileManager::write_graph(mygraph1, "kcentertestimg1", "graphml");
+		testImgPath.pop_back();
+
+
+		//read and build graph for the second test image
+		//do matching on the two test image 
+		testImgPath.push_back(testImg2);
+		cv::Mat descripts2;
+		std::vector<cv::KeyPoint> kpts2;
+
+		if (readResult.tool == fileManager::ArgType::TOOL_OPENCV) {
+			extractor::openCVimg_descips_compute(testImgPath, descripts2, kpts2);
+		}
+		else {
+			extractor::vlimg_descips_compute(testImgPath, descripts2, kpts2);
+		}
+
+		//do kd-tree on the source descriptors
+		matches = matcher::kdTree(kCenters, descripts2);
+		igraph_t mygraph2;
+		status = graph::build(matches, kpts2, mygraph2);
+		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+		fileManager::write_graph(mygraph2, "kcentertestimg2", "graphml");
+
+		auto sTime = clock();
+
+		//add to the graph bags and compute the matching score
+		kernel::robustKernel kernelObj(2, kCenters.rows);
+		kernelObj.push_back(mygraph1);
+		kernelObj.push_back(mygraph2);
+
+		std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
+		auto resMat = kernelObj.robustKernelCom();
+		int cols = igraph_matrix_ncol(&resMat);
+		int rows = igraph_matrix_nrow(&resMat);
+		for (int i = 0; i < cols; i++) {
+			std::cout << std::endl;
+			for (int j = 0; j < rows; j++) {
+				std::cout << MATRIX(resMat, i, j) << "\t";
+			}
+		}
+		CSVOutput << i << "," << MATRIX(resMat, 0, 1) << "\n";
+	}
+
+}
 int main(int argc, const char* argv[]) {
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
 	graphBuildPlusKernelTest(argc, argv);
+	/*dictTest(argc, argv);*/
 }
 
 

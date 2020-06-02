@@ -33,22 +33,24 @@ bool graph::buildFull(igraph_t &graph, int n, bool directed) {
 
 bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph) {
 	//build from matches result and parameter setting
-	if (matches.size() != kpts.size()) {
-		std::cout << "graph.buld: matches and kpts size doesn't match!" << std::endl;
+	if (matches.size() > kpts.size()) {
+		std::cout << "graph.buld: matches size cannot bigger than the keypoint size!" << std::endl;
 		return false;
 	}
 	clock_t sTime = clock();
 	size_t n_vertices = matches.size();
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
 	igraph_empty(&mygraph,n_vertices,IGRAPH_UNDIRECTED);
-	SETGAS(&mygraph, "name", "kernelGraph");
+	SETGAS(&mygraph, "name", "kernelGraph");  // set graph name attribute
+	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
+	// add more information to the graph, like the vertices number and edge number
 
 	//define container for keypoints and compute distance
 	Eigen::MatrixXd pos(n_vertices, 2);
 	Eigen::MatrixXd dists(n_vertices, n_vertices);
 	//loop through and add edges
-	for (size_t i = 0; i < kpts.size();i++) {
-		pos.row(i) = Eigen::Vector2d(kpts[i].pt.x, kpts[i].pt.y);
+	for (size_t i = 0; i < n_vertices;i++) {
+		pos.row(i) = Eigen::Vector2d(kpts[matches[i].queryIdx].pt.x, kpts[matches[i].queryIdx].pt.y);
 	}
 
 	for (size_t i = 0; i < n_vertices; i++) {
@@ -82,10 +84,10 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_real_t* positiony = posy.data();
 	//allocate word label to query nodes
 	for (size_t i = 0; i < n_vertices;i++) {
-		labs[matches[i].queryIdx] = matches[i].trainIdx;
-		scls[i] = kpts[i].size;
-		posx[i] = kpts[i].pt.x;
-		posy[i] = kpts[i].pt.y;
+		labs[i] = matches[i].trainIdx;
+		scls[i] = kpts[matches[i].queryIdx].size;
+		posx[i] = kpts[matches[i].queryIdx].pt.x;
+		posy[i] = kpts[matches[i].queryIdx].pt.y;
 	}
 	//igraph add labels and degrees attributes 
 	igraph_vector_t lab_vec, edge_vec,scale_vec,posx_vec,posy_vec;
@@ -105,7 +107,11 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	std::vector<igraph_real_t> edges;
 	edges.reserve(params::maxNumDeg * 2 *n_vertices);
 	for (size_t i = 0; i < n_vertices; i++) {
-		//compare the distance and deg limits
+		/* compare the distance and deg limits
+		*   a. Here each vertex is limited on the number of their connected vertices
+		*	the limiting number  = params::maxNumDeg
+		*	b. the edge distance is constrained that edge should not exceed radDegLim * kpts.scale
+		*/
 		for (size_t j = 1; j<params::maxNumDeg+1 && j < n_vertices; j++) {
 			if (dists(i, indexes(j, i)) < params::radDegLim * VAN(&mygraph,"scale",i)) {
 				edges.push_back(i);
@@ -113,6 +119,8 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 			}
 		}
 	}
+	size_t n_edges = edges.size() / 2;
+	SETGAN(&mygraph, "edges", n_edges); //set edge number attribute
 	igraph_vector_view(&edge_vec, edges.data(), edges.size());
 	igraph_add_edges(&mygraph, &edge_vec, 0);
 

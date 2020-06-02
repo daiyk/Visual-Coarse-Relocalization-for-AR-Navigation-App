@@ -18,7 +18,7 @@ int fileManager::parameters::noctaveLayer = 3; // scale layers per octave
 int fileManager::parameters::firstOctaveInd = -1; // learning start from 1th octave, -1 for more details
 double fileManager::parameters::sigma_0 = 1.6; // sigma for the #0 octave
 int fileManager::parameters::centers = 200;    // k-means center detection, defines the number of centers
-int fileManager::parameters::numOfAttemp = 3; //times of try to compute the center for each cluster, five times to choose the best one
+int fileManager::parameters::numOfAttemp = 5; //times of try to compute the center for each cluster, five times to choose the best one
 int fileManager::parameters::numOfItera = 20;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
@@ -29,7 +29,11 @@ TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUN
 float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
 
 //matching setting
-int fileManager::parameters::numOfNN = 2;
+int fileManager::parameters::maxNumComp = 200; //sift paper setting
+int fileManager::parameters::numOfNN = 2; //sift paper setting
+double fileManager::parameters::distRat = 0.8; // sift paper setting for threshold
+
+//graph building relevent setting
 size_t fileManager::parameters::maxNumDeg = 5; //
 double fileManager::parameters::radDegLim = std::numeric_limits<double>::infinity(); //default infinity
 
@@ -149,18 +153,20 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
             std::cerr << "Mode Train: WARNING: test subfolder for provided path doesn't exist! read training imgs from training path......" << endl;
         }
         else {
-            for (const auto& entry : fs::directory_iterator(test_path)) {
-                std::string::size_type idx;
-                idx = entry.path().string().rfind('.');
-                if (idx != std::string::npos)
-                {
-                    std::string extension = entry.path().string().substr(idx + 1);
-                    if (extension == "jpg"|| extension == "JPG"|| extension == "JPEG") {
-                        testFilePaths.push_back(entry.path().string());
-                        cout << "Mode Train: Testing img is added and found at: " << entry.path().string() << "......" << endl;
-                    }
-                    else {
-                        cout << "Mode Train: img " + entry.path().string() + ": Extension" + extension + " is not supported ignore the image" << endl;
+            if (fs::exists(test_path)) {
+                for (const auto& entry : fs::directory_iterator(test_path)) {
+                    std::string::size_type idx;
+                    idx = entry.path().string().rfind('.');
+                    if (idx != std::string::npos)
+                    {
+                        std::string extension = entry.path().string().substr(idx + 1);
+                        if (extension == "jpg" || extension == "JPG" || extension == "JPEG") {
+                            testFilePaths.push_back(entry.path().string());
+                            cout << "Mode Train: Testing img is added and found at: " << entry.path().string() << "......" << endl;
+                        }
+                        else {
+                            cout << "Mode Train: img " + entry.path().string() + ": Extension" + extension + " is not supported ignore the image" << endl;
+                        }
                     }
                 }
             }
@@ -246,7 +252,7 @@ void fileManager::write_graph(igraph_t& graph, string name, string mode) {
     if (!fs::exists("Result")) {
         fs::create_directories("Result");
     }
-    std::string fileName = name + "_" + dateTime();
+    std::string fileName = name;
     if (mode == "graphml") {
         FILE* graph_writer = fopen(("Result/"+fileName + ".graphml").c_str(), "w");
         igraph_warning_handler_t *warning;
@@ -287,7 +293,10 @@ void fileManager::read_user_set(fs::path& params) {
     fileManager::parameters::MATCH_THRES = jsonlist.value("MATCH_THRES", fileManager::parameters::MATCH_THRES);
     fileManager::parameters::numOfNN = jsonlist.value("numOfNN", fileManager::parameters::numOfNN);
     fileManager::parameters::maxNumDeg = jsonlist.value("maxNumDeg", fileManager::parameters::maxNumDeg);
-    fileManager::parameters::radDegLim = jsonlist.value("radDegLim", fileManager::parameters::radDegLim);
+    int radLim = jsonlist.value("radDegLim", fileManager::parameters::radDegLim);
+    if (radLim != -1) {
+        fileManager::parameters::radDegLim = radLim;
+    }
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
     fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
 }
