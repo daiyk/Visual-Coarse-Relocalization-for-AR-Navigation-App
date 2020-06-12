@@ -20,9 +20,11 @@ double fileManager::parameters::sigma_0 = 1.6; // sigma for the #0 octave
 int fileManager::parameters::centers = 200;    // k-means center detection, defines the number of centers
 int fileManager::parameters::numOfAttemp = 5; //times of try to compute the center for each cluster, five times to choose the best one
 int fileManager::parameters::numOfItera = 20;
+int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
 double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
+double fileManager::parameters::imgScale = 0.5; //image scaling during detection and drawing
 
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
@@ -297,6 +299,7 @@ void fileManager::read_user_set(fs::path& params) {
     if (radLim != -1) {
         fileManager::parameters::radDegLim = radLim;
     }
+    fileManager::parameters::imgScale = jsonlist.value("imgScale", fileManager::parameters::imgScale);
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
     fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
 }

@@ -53,6 +53,8 @@ int main(int argc, const char* argv[]) {
     }
 
     VL_PRINT("!------- Start feature detection with OpenCV and VLFeat ------!\n");
+
+    //vlfeat pipeline
     if (readResult.tool==fileManager::ArgType::TOOL_VLFEAT || readResult.tool==fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT) {
         VL_PRINT("!------- VLFeat ------!\n");
         clock_t sTime = clock();
@@ -79,7 +81,8 @@ int main(int argc, const char* argv[]) {
         else if (readResult.mode==fileManager::ArgType::MODE_DEMO) { 
             Mat outImg, purImg;
             outImg = imread(trainPaths[0]);
-            purImg = outImg;
+            cv::resize(outImg, purImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
+            outImg = purImg;
             cv::drawKeypoints(purImg, keypoints, outImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
             namedWindow("vlfeat detection Img", WINDOW_NORMAL);
             imshow("vlfeat detection Img", outImg);
@@ -109,7 +112,8 @@ int main(int argc, const char* argv[]) {
         else if (readResult.mode==fileManager::ArgType::MODE_DEMO) {
             Mat outImg, purImg;
             outImg = imread(trainPaths[0]);
-            purImg = outImg;
+            cv::resize(outImg, purImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
+            outImg = purImg;
             drawKeypoints(purImg, keypoints, outImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
             namedWindow("opencv feat detect Img", WINDOW_NORMAL);
             imshow("opencv feat detect Img", outImg);

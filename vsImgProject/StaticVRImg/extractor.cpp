@@ -31,14 +31,15 @@ void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& 
     #pragma omp for schedule(dynamic)
         for (int i = 0; i < num_imgs; i = i + 1) {
             // int minHessian = 400; // for SURF detector only
-            Mat grayImg;
+            Mat grayImg, purImg;
             Ptr<xfeatures2d::SIFT> detector = xfeatures2d::SIFT::create();
             if (!fs::exists(fs::path(paths[i]))) {
                 cout << "Warning: " << paths[i] << "does not exist, the image is ignored;" << endl;
                 continue;
             }
             cvtColor(imread(paths[i]), grayImg, COLOR_BGR2GRAY);
-
+            cv::resize(grayImg, purImg, cv::Size(), params::imgScale, params::imgScale, cv::INTER_AREA);
+            grayImg = purImg;
             //surf to detect and compute
             Mat descriptors;
             std::vector<KeyPoint> kpts;
@@ -79,7 +80,7 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             cvtColor(cv::imread(paths[i]), grayImg, COLOR_BGR2GRAY);
 
             //resize image
-            cv::resize(grayImg, ImgResize, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
+            cv::resize(grayImg, ImgResize, cv::Size(), params::imgScale, params::imgScale, cv::INTER_AREA);
             grayImg = ImgResize;
             //surf to detect and compute
             int width = grayImg.size().width;

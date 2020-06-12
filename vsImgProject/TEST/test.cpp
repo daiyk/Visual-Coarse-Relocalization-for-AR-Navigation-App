@@ -12,6 +12,7 @@
 #include <Eigen/Core>
 #include <algorithm>
 #include <iostream>
+#include <random>
 #include <numeric>
 #include <string>
 #include <nlohmann/json.hpp>
@@ -39,8 +40,6 @@ void filecreate() {
 	std::filesystem::create_directory(resultPath.parent_path() / "Result");
 }
 int graphbuildTest(int argc, const char* argv[]) {
-	//graph::graphTest();
-	//test 
 	//testing the build function with graph
 	if (argc < 3) {
 		std::cout << "Please provides path to the dictionary and image!" << std::endl;
@@ -116,8 +115,6 @@ void graphKernelTest() {
 		}
 	}
 	
-
-
 	//test with old functions
 	sTime = clock();
 	Eigen::MatrixXi E(7,3);
@@ -141,12 +138,14 @@ void graphKernelTest() {
 	std::cout << std::endl<<k_mat;
 }
 
+
 /*
 *	arg1: path to the kcenter file, stored as yml
 *	arg2: path to image1 that does the image matching
 *	arg3: path to image2 that does the image matching
+*	kptKeeper: the percentage of keypoints keep for comparison
 */
-void graphBuildPlusKernelTest(int argc, const char* argv[]) {
+void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1.0, int iterations=1) {
 	if (argc < 3) {
 		std::cout << "Please provides path to the dictionary and image!" << std::endl;
 	}
@@ -175,7 +174,7 @@ void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 
 	//use the filename as graph name
 	std::string graphName1 = fs::path(testImg1).stem().string();
-	fileManager::write_graph(mygraph1, graphName1, "graphml");
+	//fileManager::write_graph(mygraph1, graphName1, "graphml");
 	trainPath.pop_back();
 
 
@@ -186,36 +185,68 @@ void graphBuildPlusKernelTest(int argc, const char* argv[]) {
 	cv::Mat descripts2;
 	std::vector<cv::KeyPoint> kpts2;
 	extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
-	/*extractor::openCVimg_descips_compute(trainPath, descripts2, kpts2);*/
-	//do kd-tree on the source descriptors
-	matches = matcher::kdTree(kCenters, descripts2);
-	igraph_t mygraph2;
-	status = graph::build(matches, kpts2, mygraph2);
-	if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-	std::string graphName2 = fs::path(testImg2).stem().string();
-	fileManager::write_graph(mygraph2, graphName2, "graphml");
+	//keep the percentage of kpts
+	std::vector<size_t> indKpts(descripts2.rows);
+	std::iota(std::begin(indKpts), std::end(indKpts), 0);
 
-	auto sTime = clock();
+	//set seed
+	std::vector<uint32_t> random_data(624);
+	std::random_device source;
+	std::generate(random_data.begin(), random_data.end(), std::ref(source));
+	std::seed_seq seeds(random_data.begin(), random_data.end());
+	std::mt19937 engine(seeds);
+	bool writegraph = false;
+	//compute several random seeds
+	for (int i = 0; i < iterations; i++) {
+		cv::Mat reserveDescripts;
+		std::vector<size_t> reserveKpts;
+		std::vector<cv::KeyPoint> reserveKpts2;
 
-	//add to the graph bags and compute the matching score
-	kernel::robustKernel kernelObj(2, kCenters.rows);
-	kernelObj.push_back(mygraph1);
-	kernelObj.push_back(mygraph2);
-
-	std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
-	auto resMat = kernelObj.robustKernelCom();
-	int cols = igraph_matrix_ncol(&resMat);
-	int rows = igraph_matrix_nrow(&resMat);
-	for (int i = 0; i < cols; i++) {
-		std::cout << std::endl;
-		for (int j = 0; j < rows; j++) {
-			std::cout << MATRIX(resMat, i, j) << "\t";
+		std::sample(indKpts.begin(), indKpts.end(), std::back_inserter(reserveKpts), size_t(descripts2.rows * kptKeeper), engine);
+		for (size_t i = 0; i < reserveKpts.size(); i++) {
+			reserveDescripts.push_back(descripts2.row(reserveKpts[i]));
+			reserveKpts2.push_back(kpts2[reserveKpts[i]]);
 		}
+		std::cout << "feature keeps percents: " << double(reserveDescripts.rows) / descripts2.rows << std::endl;
+		//sample for the 
+		/*extractor::openCVimg_descips_compute(trainPath, descripts2, kpts2);*/
+		//do kd-tree on the source descriptors
+		matches = matcher::kdTree(kCenters, reserveDescripts);
+		igraph_t mygraph2;
+		status = graph::build(matches, reserveKpts2, mygraph2);
+		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+		std::string graphName2 = fs::path(testImg2).stem().string();
+		//if (!writegraph) {
+			fileManager::write_graph(mygraph2, graphName2+"_"+std::to_string(i), "graphml");
+			writegraph = true;
+		//}
+		
+
+		auto sTime = clock();
+
+		//add to the graph bags and compute the matching score
+		kernel::robustKernel kernelObj(1, kCenters.rows);
+		kernelObj.push_back(mygraph2);
+		kernelObj.push_back(mygraph1);
+
+		std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
+		auto resMat = kernelObj.robustKernelCom();
+		int cols = igraph_matrix_ncol(&resMat);
+		int rows = igraph_matrix_nrow(&resMat);
+
+		std::cout << i << "th iteration with random seeds" << std::endl;
+		for (int i = 0; i < cols; i++) {
+			std::cout << std::endl;
+			for (int j = 0; j < rows; j++) {
+				std::cout << MATRIX(resMat, i, j) << "\t";
+			}
+		}
+		std::cout << std::endl;		
 	}
 
 }
 
-//dictionary test for different sets of visual words
+//dictionary test for different sizes of dictionary
 int dictTest(int argc, const char* argv[]) {
 
 	std::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
@@ -360,7 +391,9 @@ int dictTest(int argc, const char* argv[]) {
 }
 int main(int argc, const char* argv[]) {
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
-	graphBuildPlusKernelTest(argc, argv);
+	readUserTest();
+	double keeps = 0.7;
+	graphBuildPlusKernelTest(argc, argv, keeps, 5);
 	/*dictTest(argc, argv);*/
 }
 

@@ -37,10 +37,13 @@ namespace fileManager {
 		static int centers;    // k-means center detection, defines the number of centers
 		static int numOfAttemp; //times of try to compute the center for each cluster, five times to choose the best one
 		static int numOfItera;
+		static int descriptDim; //descriptDim default to SIFT 128
 		static double accuracy;
 		static double distRat;
 		static double siftEdgeThres;
 		static double siftPeakThres;
+		static double imgScale;
+		
 
 		//OpenCV relevent setting
 		static cv::TermCriteria criteria; //stop criteria, COUNT means number of iter, EPS means convergence accuracy

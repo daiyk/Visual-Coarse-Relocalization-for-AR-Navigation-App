@@ -55,9 +55,9 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph) {
     igraph_vector_destroy(&labels);
 }
 
-double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j) {
+double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j, double edge_norm) {
 
-    std::vector<double>kernelVals;
+    std::vector<double> kernelVals;
     //get the adjacency list
     //igraph_adjlist_t adjlist_i, adjlist_j;
     //igraph_adjlist_init(&graph_i, &adjlist_i, IGRAPH_ALL);
@@ -67,55 +67,80 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
     igraph_t& graph_j = this->graphs[j];
     //compute the edge norm
 
-    //?? edge norm should be obatained from edge weight computation  
-    double edge_norm1 = 1.0 / this->edge_nums[i];
-    double edge_norm2 = 1.0 / this->edge_nums[j];
-    //iterate through the two sets of vertices and compute the kernel values
-    igraph_vector_t nei1_lab,nei2_lab;
-    igraph_vector_init(&nei1_lab, 0);
-    igraph_vector_init(&nei2_lab, 0);
+    //?? edge norm should be obatained from edge weight computation
+    //the original method to compute the edge norm
+    /*double edge_norm1 = 1.0 / this->edge_nums[i];
+    double edge_norm2 = 1.0 / this->edge_nums[j];*/
+
+    //??change to the total sum of edges
+    double edge_norm1 = edge_norm;
+    double edge_norm2 = edge_norm;
+    
+    //iterate through the two sets of vertices and compute the kernel values 
     for (size_t i = 0; i < vert1.size(); i++) {
+        igraph_vector_t nei1_lab;
+        igraph_vector_init(&nei1_lab, 0);
         igraph_vs_t vert1_nei;
         igraph_vs_adj(&vert1_nei, vert1[i], IGRAPH_ALL);
         igraph_cattribute_VANV(&graph_i, "label", vert1_nei, &nei1_lab);
 
+        if (igraph_vector_size(&nei1_lab) == 0) { 
+            igraph_vector_destroy(&nei1_lab);
+            continue; 
+        }
         //create the nei vector
-        igraph_vector_t nei1_vec;
-        igraph_vector_init(&nei1_vec, this->n_labels);
+        std::vector<double> nei1_vec(this->n_labels, 0);
+        //igraph_vector_t nei1_vec;
+        //igraph_vector_init(&nei1_vec, this->n_labels);
         for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
-            VECTOR(nei1_vec)[(int)VECTOR(nei1_lab)[m]] += edge_norm1;
+            nei1_vec[(int)VECTOR(nei1_lab)[m]] += edge_norm1;
         }
         for (size_t j = 0; j < vert2.size(); j++) {
+            igraph_vector_t nei2_lab;
+            igraph_vector_init(&nei2_lab, 0);
             igraph_vs_t vert2_nei;
             igraph_vs_adj(&vert2_nei, vert2[j], IGRAPH_ALL);
             igraph_cattribute_VANV(&graph_j, "label", vert2_nei, &nei2_lab);
 
-            //create the nei vector
-            igraph_vector_t nei2_vec;
-            igraph_vector_init(&nei2_vec, this->n_labels);
-            for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
-                VECTOR(nei2_vec)[(int)VECTOR(nei2_lab)[n]] += edge_norm2;
+            if (igraph_vector_size(&nei2_lab) == 0) { 
+                igraph_vector_destroy(&nei2_lab); 
+                continue; 
             }
+            //create the nei vector
+            std::vector<double> nei2_vec(this->n_labels, 0);
+            //igraph_vector_t nei2_vec;
+            //igraph_vector_init(&nei2_vec, this->n_labels);
+            for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
+                nei2_vec[(int)VECTOR(nei2_lab)[n]] += edge_norm2;
+            }
+
+            //rebuild the vector with element-wise min
+            std::vector<double> cwiseMinVec;
+            cwiseMinVec.reserve(this->n_labels);
+            std::transform(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), std::back_inserter(cwiseMinVec), [](double a, double b) {return std::min(a, b); });
 
 
             //multiple two vector and get the kernel value
-            igraph_vector_mul(&nei2_vec, &nei1_vec);
-            kernelVals.push_back(igraph_vector_sum(&nei2_vec));
+            //igraph_vector_mul(&nei2_vec, &nei1_vec);
+            //kernelVals.push_back(igraph_vector_sum(&nei2_vec));
+            kernelVals.push_back(std::inner_product(cwiseMinVec.begin(), cwiseMinVec.end(), cwiseMinVec.begin(), 0.0));
 
-            igraph_vector_destroy(&nei2_vec);
+            igraph_vector_destroy(&nei2_lab);
+            //igraph_vector_destroy(&nei2_vec);
             igraph_vs_destroy(&vert2_nei);
         }
-        igraph_vector_destroy(&nei1_vec);
+        igraph_vector_destroy(&nei1_lab);
+        //igraph_vector_destroy(&nei1_vec);
         igraph_vs_destroy(&vert1_nei);
 
     }
 
-    igraph_vector_destroy(&nei1_lab);
-    igraph_vector_destroy(&nei2_lab);
-
     //debug
-
-    return *max_element(kernelVals.begin(), kernelVals.end());
+    if (!kernelVals.empty()) {
+        return *max_element(kernelVals.begin(), kernelVals.end());
+    }
+    else
+        return 0.0;
 }
     
 
@@ -135,7 +160,7 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     //build label indices
     std::map<int, int> label_index;
     int idx = 0;
-    //mark each label for their positions at the 
+    //mark each label for their positions at the label_set, and build invert index
     for (auto i : label_sets) {
         label_index.insert(pair<int, int>(i, idx));
         idx++;
@@ -151,12 +176,16 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     igraph_matrix_init(&k_matrix, n_graphs, n_graphs);
     igraph_matrix_null(&k_matrix);
 
-
+    double edge_num_sum=0.0, edge_norm;
+    for (int i = 0; i < n_graphs; i++) {
+        edge_num_sum += this->edge_nums[i];
+    }
+    edge_norm = 1.0 / edge_num_sum;
     for (int h = 0; h < h_max; h++) {
         //iterate over all stored graphs
         for (int i = 0; i < n_graphs; i++) {
-            //start from i to avoid multicount the values?? but set to start from 0 for the probability in range [0,1]
-            for (int j = 0; j < n_graphs; j++) {
+            //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
+            for (int j = i; j < n_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
                 auto& inv1 = this->inverted_indices[i];
                 auto& inv2 = this->inverted_indices[j];
 
@@ -164,7 +193,7 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
                     if (inv1.count(val) && inv2.count(val)) {
                         auto& vers1 = inv1[val];
                         auto& vers2 = inv2[val];
-                        double kernelval = robustKernelVal(vers1, vers2, i, j);
+                        double kernelval = robustKernelVal(vers1, vers2, i, j,edge_norm);
                         if (i == j) {
                             kernelval *= 0.5;
                         }
@@ -177,13 +206,266 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     }
 
     //get the total sum of neighboring comparison value to itself
-    double sum_self_kernel = 0;
+    //print the matrix value and check out
+    //original paper  
+
+    /*double sum_self_kernel = 0.0;
     for (int i = 0; i < n_graphs; i++) {
         sum_self_kernel += MATRIX(k_matrix, i, i);
     }
-    igraph_matrix_scale(&k_matrix, 1.0/sum_self_kernel);
+    igraph_matrix_scale(&k_matrix, 2.0/sum_self_kernel);
+    return k_matrix;*/
+
+    //use alternative equation for kernel value comparison
+    //for (int i = 0; i < n_graphs; i++) {
+    //    for (int j = 0; j < n_graphs; j++) {
+    //        std::cout << MATRIX(k_matrix, i, j) << "\t";
+    //    }
+    //    std::cout << std::endl;
+    //}
+    //double sum_self_kernel = 1.0;
+    //for (int i = 0; i < n_graphs; i++) {
+    //    sum_self_kernel *= MATRIX(k_matrix, i, i);
+    //}
+    ////loop all element and compute the score
+    //igraph_matrix_scale(&k_matrix, 1.0/sqrt(sum_self_kernel));
+    //return k_matrix;
+
+    for (int i = 0; i < n_graphs; i++) {
+        for (int j = 0; j < n_graphs; j++) {
+            std::cout << MATRIX(k_matrix, i, j) << "\t";
+        }
+        std::cout << std::endl;
+    }
+    //use the query graph as normalization
+    double sum_self_kernel = pow(MATRIX(k_matrix,0,0),2);
+    //loop all element and compute the 
+    igraph_matrix_scale(&k_matrix, 1.0 / sqrt(sum_self_kernel));
     return k_matrix;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+double kernel::robustKernel::robustKernelValTest(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j, double edge_norm) {
+
+    std::vector<double>kernelVals;
+    //get the adjacency list
+    //igraph_adjlist_t adjlist_i, adjlist_j;
+    //igraph_adjlist_init(&graph_i, &adjlist_i, IGRAPH_ALL);
+    //igraph_adjlist_init(&graph_j, &adjlist_j, IGRAPH_ALL);
+
+    igraph_t& graph_i = this->graphs[i];
+    igraph_t& graph_j = this->graphs[j];
+    //compute the edge norm
+
+    //?? edge norm should be obatained from edge weight computation
+    //the original method to compute the edge norm
+    /*double edge_norm1 = 1.0 / this->edge_nums[i];
+    double edge_norm2 = 1.0 / this->edge_nums[j];*/
+
+    //??change to the total sum of edges
+    double edge_norm1 = edge_norm;
+    double edge_norm2 = edge_norm;
+
+    //iterate through the two sets of vertices and compute the kernel values 
+    for (size_t i = 0; i < vert1.size(); i++) {
+        igraph_vector_t nei1_lab;
+        igraph_vector_init(&nei1_lab, 0);
+        igraph_vs_t vert1_nei;
+        igraph_vs_adj(&vert1_nei, vert1[i], IGRAPH_ALL);
+        igraph_cattribute_VANV(&graph_i, "label", vert1_nei, &nei1_lab);
+
+        if (igraph_vector_size(&nei1_lab) == 0) {
+            igraph_vector_destroy(&nei1_lab);
+            continue;
+        }
+        //create the nei vector
+        igraph_vector_t nei1_vec;
+        igraph_vector_init(&nei1_vec, this->n_labels);
+        for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
+            VECTOR(nei1_vec)[(int)VECTOR(nei1_lab)[m]] += edge_norm1;
+        }
+
+        std::cout << std::endl;
+        for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
+            std::cout<<VECTOR(nei1_lab)[m]<<"  ";
+        }
+
+        for (size_t j = 0; j < vert2.size(); j++) {
+            igraph_vector_t nei2_lab;
+            igraph_vector_init(&nei2_lab, 0);
+            igraph_vs_t vert2_nei;
+            igraph_vs_adj(&vert2_nei, vert2[j], IGRAPH_ALL);
+            igraph_cattribute_VANV(&graph_j, "label", vert2_nei, &nei2_lab);
+
+            if (igraph_vector_size(&nei2_lab) == 0) {
+                igraph_vector_destroy(&nei2_lab);
+                continue;
+            }
+            //create the nei vector
+            igraph_vector_t nei2_vec;
+            igraph_vector_init(&nei2_vec, this->n_labels);
+            for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
+                VECTOR(nei2_vec)[(int)VECTOR(nei2_lab)[n]] += edge_norm2;
+            }
+
+            std::cout << std::endl;
+            for (size_t m = 0; m < igraph_vector_size(&nei2_lab); m++) {
+                std::cout << VECTOR(nei2_lab)[m] << "  ";
+            }
+
+            //multiple two vector and get the kernel value
+            igraph_vector_mul(&nei2_vec, &nei1_vec);
+            kernelVals.push_back(igraph_vector_sum(&nei2_vec));
+            std::cout << igraph_vector_sum(&nei2_vec) << std::endl;
+
+            igraph_vector_destroy(&nei2_lab);
+            igraph_vector_destroy(&nei2_vec);
+            igraph_vs_destroy(&vert2_nei);
+        }
+        igraph_vector_destroy(&nei1_lab);
+        igraph_vector_destroy(&nei1_vec);
+        igraph_vs_destroy(&vert1_nei);
+
+    }
+
+    //debug
+    if (!kernelVals.empty()) {
+        return *max_element(kernelVals.begin(), kernelVals.end());
+    }
+    else
+        return 0.0;
+}
+
+
+igraph_matrix_t kernel::robustKernel::kernelValTest() {
+    //count label value and construct index corresponding for adjancy matrix
+    std::set<int> label_sets;
+    int n_graphs = this->graphs.size();
+    //iterate through whole sets of graphs. and insert each graph's inverted_tree to count for the unique labels
+    for (int i = 0; i < this->inverted_indices.size(); i++) {
+        for (const auto& inv_idx : this->inverted_indices[i]) {
+            label_sets.insert(inv_idx.first);
+        }
+    }
+    //total unique labels num
+    int n_labels = label_sets.size();
+
+    //build label indices
+    std::map<int, int> label_index;
+    int idx = 0;
+    //mark each label for their positions at the label_set, and build invert index
+    for (auto i : label_sets) {
+        label_index.insert(pair<int, int>(i, idx));
+        idx++;
+    }
+
+    //Compute edge norm for each graph
+    //??
+
+    //build neighborhood label vector
+
+    //iterate the predefined iteration and compute the kernel values
+    igraph_matrix_t k_matrix;
+    igraph_matrix_init(&k_matrix, n_graphs, n_graphs);
+    igraph_matrix_null(&k_matrix);
+
+    double edge_num_sum = 0.0, edge_norm;
+    for (int i = 0; i < n_graphs; i++) {
+        edge_num_sum += this->edge_nums[i];
+    }
+    edge_norm = 1.0 / edge_num_sum;
+    for (int h = 0; h < h_max; h++) {
+        //iterate over all stored graphs
+        for (int i = 0; i < n_graphs; i++) {
+            //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
+            for (int j = i; j < n_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
+                auto& inv1 = this->inverted_indices[i];
+                auto& inv2 = this->inverted_indices[j];
+
+                for (auto& val : label_sets) {
+                    if (inv1.count(val) && inv2.count(val)) {
+                        auto& vers1 = inv1[val];
+                        auto& vers2 = inv2[val];
+                        double kernelval = robustKernelVal(vers1, vers2, i, j, edge_norm);
+                        double comparKernelVal = robustKernelVal(vers1, vers1, i, i, edge_norm);
+                        if (kernelval > comparKernelVal || kernelval<0 || comparKernelVal<0) {
+                            double kernelval = robustKernelValTest(vers1, vers2, i, j, edge_norm);
+                            double comparKernelVal = robustKernelValTest(vers1, vers1, i, i, edge_norm);
+                        }
+                        if (i == j) {
+                            kernelval *= 0.5;
+                        }
+                        MATRIX(k_matrix, i, j) = MATRIX(k_matrix, i, j) + kernelval;
+                        MATRIX(k_matrix, j, i) = MATRIX(k_matrix, j, i) + kernelval;
+                    }
+                }
+            }
+        }
+    }
+
+    //get the total sum of neighboring comparison value to itself
+    //print the matrix value and check out
+    //original paper  
+
+    /*double sum_self_kernel = 0.0;
+    for (int i = 0; i < n_graphs; i++) {
+        sum_self_kernel += MATRIX(k_matrix, i, i);
+    }
+    igraph_matrix_scale(&k_matrix, 2.0/sum_self_kernel);
+    return k_matrix;*/
+
+    //use alternative equation for kernel value comparison
+    //for (int i = 0; i < n_graphs; i++) {
+    //    for (int j = 0; j < n_graphs; j++) {
+    //        std::cout << MATRIX(k_matrix, i, j) << "\t";
+    //    }
+    //    std::cout << std::endl;
+    //}
+    //double sum_self_kernel = 1.0;
+    //for (int i = 0; i < n_graphs; i++) {
+    //    sum_self_kernel *= MATRIX(k_matrix, i, i);
+    //}
+    ////loop all element and compute the score
+    //igraph_matrix_scale(&k_matrix, 1.0/sqrt(sum_self_kernel));
+    //return k_matrix;
+
+    for (int i = 0; i < n_graphs; i++) {
+        for (int j = 0; j < n_graphs; j++) {
+            std::cout << MATRIX(k_matrix, i, j) << "\t";
+        }
+        std::cout << std::endl;
+    }
+    //use the query graph as normalization
+    double sum_self_kernel = pow(MATRIX(k_matrix, 0, 0), 2);
+    //loop all element and compute the 
+    igraph_matrix_scale(&k_matrix, 1.0 / sqrt(sum_self_kernel));
+    return k_matrix;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 double kernel::robustKernel::kernelValue(const vector<int>& map1, const vector<int>& map2, int& i, int& j, vector<int>& num_v, MatrixXd& node_nei)
