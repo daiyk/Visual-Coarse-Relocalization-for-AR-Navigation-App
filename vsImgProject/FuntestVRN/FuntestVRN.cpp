@@ -71,7 +71,7 @@ int main(int argc, const char* argv[]) {
         //check if only test img feature detection
         if (readResult.mode==fileManager::ArgType::MODE_TRAIN) {
             //train k-means classifier
-            //free memory since keypoints during training is not useful 
+            //free memory since keypoints during training is not used 
             std::vector<KeyPoint>().swap(keypoints);
             cluster::vl_visual_word_compute(allDescrips, kCenters);
             std::vector<KeyPoint> kpts;

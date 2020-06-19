@@ -6,6 +6,7 @@
 namespace cluster{
 	void openCV_visual_words_compute(cv::Mat& allDescripts, cv::Mat& kCenters);
 	void vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters);
+	void tf_idf();
 }
 
 #endif

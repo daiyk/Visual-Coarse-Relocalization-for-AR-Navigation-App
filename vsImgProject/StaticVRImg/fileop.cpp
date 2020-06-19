@@ -11,6 +11,8 @@ using namespace cv;
 using namespace std;
 
 
+//default user set location
+fs::path fileManager::user_set_default = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json";
 
 //parameters definitions
 int fileManager::parameters::octave = -1; //default to -1 to compute every possible octave: log2(min(width,height))
@@ -268,7 +270,7 @@ void fileManager::write_graph(igraph_t& graph, string name, string mode) {
     }
 }
 
-void fileManager::read_user_set(fs::path& params) {
+void fileManager::read_user_set(fs::path params) {
 
     //read path
     json jsonlist;
@@ -302,4 +304,19 @@ void fileManager::read_user_set(fs::path& params) {
     fileManager::parameters::imgScale = jsonlist.value("imgScale", fileManager::parameters::imgScale);
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
     fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
+}
+
+/*
+    A test debug function
+*/
+void filecreate() {
+    std::filesystem::path curPath = std::filesystem::current_path();
+    std::filesystem::path resultPath;
+    for (auto it : std::filesystem::recursive_directory_iterator(curPath)) {
+        if (it.path().stem().string() == "vsImgProject") {
+            resultPath = it.path();
+            break;
+        }
+    }
+    std::filesystem::create_directory(resultPath.parent_path() / "Result");
 }

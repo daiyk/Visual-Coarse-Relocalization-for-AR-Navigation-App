@@ -11,7 +11,7 @@ import PIL.Image as Image
 parser = argparse.ArgumentParser(description="Graph visualization program")
 parser.add_argument("-g",action="append",nargs="+", help="paths to graphs for visulization[required]",required=True)
 
-parser.add_argument("-scl", default = 0.5, type=float, help="the rescale value of image[default: 0.5]")
+parser.add_argument("-scl", required=True, type=float, help="the rescale value of image[default: 0.5]")
 
 def read_graph(path,scale):
     dir_path = Path.cwd()

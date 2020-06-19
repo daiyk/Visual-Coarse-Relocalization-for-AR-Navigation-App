@@ -10,6 +10,9 @@ namespace extractor {
 
 	// vlfeat pipleline to do extraction of keypoints and descriptors
 	void vlimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& cv_keypoints);
+
+	//simple single image descriptor computing
+	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints);
 }
 #endif // ! _DESCRIP_EXT_H
 

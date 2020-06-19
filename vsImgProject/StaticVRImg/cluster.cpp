@@ -29,7 +29,7 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
     cout << "start k-means learning with " << params::centers << " centers..." << endl;
     //all kmeans parameters setting corresponding with OpenCV setting
     int dim = 128;
-    int numOfpts = allDescrip.rows;
+    size_t numOfpts = allDescrip.rows;
     double energy;
     VlKMeans* km = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
     vl_kmeans_set_algorithm(km, VlKMeansLloyd);
@@ -69,4 +69,8 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
 
     }
     cout << "-> VLFeat kmeans learning spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec" << endl;
+}
+
+void cluster::tf_idf() {
+
 }

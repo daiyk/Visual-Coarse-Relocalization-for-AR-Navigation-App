@@ -10,7 +10,12 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 namespace fs = std::filesystem;
+
+
 namespace fileManager {
+	//default user_set location
+	extern fs::path user_set_default;
+
 	enum class ArgType {
 		TOOL_OPENCV,
 		TOOL_VLFEAT,
@@ -60,6 +65,6 @@ namespace fileManager {
 	ArgList funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths, const char* keys);
 	void write_to_file(std::string name, std::vector<cv::KeyPoint>& kpts, cv::Mat& kCenters);
 	void write_graph(igraph_t& graph, std::string name, std::string mode);
-	void read_user_set(fs::path& params);
+	void read_user_set(fs::path params= user_set_default);
 }
 #endif // 

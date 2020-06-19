@@ -15,7 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test.cpp">
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FLANN.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphtest.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UKsets.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UKsets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

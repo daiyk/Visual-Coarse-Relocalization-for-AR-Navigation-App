@@ -155,10 +155,79 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
 
         }
     }
-    cout << "    -> total " << allDescripts.size() << " descriptors are created during the session" << endl;
-    cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+    std::cout << "    -> total " << allDescripts.size() << " descriptors are created during the session" << endl;
+    std::cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
 
+void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vector<KeyPoint>& cv_keypoints) {
+    //resize image
+    auto sTime = clock();
+    Mat ImgResize, ImgResizeF1;
+    cv::resize(img1, ImgResize, cv::Size(), params::imgScale, params::imgScale, cv::INTER_AREA);
+
+    //surf to detect and compute
+    int width = ImgResize.size().width;
+    int height = ImgResize.size().height;
+
+    if (params::octave == -1) {
+        int noctave = log2(min(width, width));
+    }
+    auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
+    vl_sift_set_edge_thresh(vl_sift, params::siftEdgeThres);
+    vl_sift_set_peak_thresh(vl_sift, params::siftPeakThres);
+
+    ImgResize.convertTo(ImgResizeF1, CV_32F, 1.0 / 255.0);
+
+    float* img_ptr = ImgResizeF1.ptr<float>(0);
+
+    if (!ImgResizeF1.isContinuous()) {
+        throw std::invalid_argument("vlImg_descrip_extractor_simple: ERROR! incontinuous Mat object is found!");
+    }
+
+    //go trough the loop of gaussian pyramid
+    int result = vl_sift_process_first_octave(vl_sift, img_ptr);
+
+    /*** define vlfeat pipeline
+     *  for each image calculate octaves
+     *  for each octave to calculate the scale spaces
+     *  for each scale space calculate keypoints
+     *  for each keypoints do thresholding and compute descriptors for each main orientation
+     *  add to the total statistics, descriptors and keypoints
+     ***/
+    while (result != VL_ERR_EOF) {
+        vl_sift_detect(vl_sift);
+
+        //to get each keypoints
+        int keyPtsNum = vl_sift_get_nkeypoints(vl_sift);
+
+        const auto* keypoints = vl_sift_get_keypoints(vl_sift);
+
+        //loop each keypoints and get orientation
+        for (int i = 0; i < keyPtsNum; i++) {
+            double rot[4];
+            int nOrit = vl_sift_calc_keypoint_orientations(vl_sift, rot, &keypoints[i]);
+
+            //get the descriptors for each computed orientation in current image
+            for (int j = 0; j < nOrit; j++) {
+                float curr_descriptor[128];
+                vl_sift_calc_keypoint_descriptor(vl_sift, curr_descriptor, &keypoints[i], rot[j]);
+                Mat descripor(1, 128, CV_32F, curr_descriptor);
+                Descripts.push_back(descripor);
+
+                KeyPoint kpt(Point2f(keypoints[i].x, keypoints[i].y), keypoints[i].sigma, rot[j] * 180 / CV_PI, 0.f, keypoints[i].o);
+
+                //push back keypoints in current keypoints
+                    cv_keypoints.push_back(kpt);
+            }
+
+        }
+        result = vl_sift_process_next_octave(vl_sift);
+    }
+    //delete sift
+    vl_sift_delete(vl_sift);
+    cout << "    -> total " << Descripts.size() << " descriptors are created during the session" << endl;
+    cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+}
 
 
 #else
