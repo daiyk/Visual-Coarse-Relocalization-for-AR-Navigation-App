@@ -231,12 +231,12 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
     //igraph_matrix_scale(&k_matrix, 1.0/sqrt(sum_self_kernel));
     //return k_matrix;
 
-    for (int i = 0; i < n_graphs; i++) {
-        for (int j = 0; j < n_graphs; j++) {
-            std::cout << MATRIX(k_matrix, i, j) << "\t";
-        }
-        std::cout << std::endl;
-    }
+    //for (int i = 0; i < n_graphs; i++) {
+    //    for (int j = 0; j < n_graphs; j++) {
+    //        std::cout << MATRIX(k_matrix, i, j) << "\t";
+    //    }
+    //    std::cout << std::endl;
+    //}
     //use the query graph as normalization
     double sum_self_kernel = pow(MATRIX(k_matrix,0,0),2);
     //loop all element and compute the 

@@ -26,7 +26,7 @@ int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
 double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
-double fileManager::parameters::imgScale = 0.5; //image scaling during detection and drawing
+double fileManager::parameters::imgScale = 1.0; //image scaling during detection and drawing
 
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy

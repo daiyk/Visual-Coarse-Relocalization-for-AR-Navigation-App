@@ -19,6 +19,7 @@ namespace kernel {
 
 		igraph_matrix_t kernelValTest();
 		double robustKernelValTest(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j, double edge_norm);
+		
 		//deprecated functions
 		static double kernelValue(const std::vector<int>& map1, const std::vector<int>& map2, int& i, int& j, std::vector<int>& num_v, Eigen::MatrixXd& node_nei);
 		static void wlRobustKernel(std::vector<Eigen::MatrixXi>& E, std::vector<std::vector<int>>& V_label, std::vector<int>& num_v, std::vector<int>& num_e, int h_max, Eigen::MatrixXd& K_mat);

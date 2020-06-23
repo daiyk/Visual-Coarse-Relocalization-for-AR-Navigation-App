@@ -28,36 +28,37 @@ int UKB::UKBench::UKBdataRead(std::string path) {
 	}
 	int count = 0, catInd = 0;
 	for (const auto& it : fs::directory_iterator(ukdata)) {
-
+		if (it.is_directory()) {
+			continue;
+		}
 		int ind = std::stoi(it.path().stem().string().substr(7, 5));
 		int catInd = ind / int(4);
+		if (catInd >= this->categoryNum) {
+			continue;
+		}
 		this->imgPaths[catInd].push_back(it.path().string());
 
 		//record indexes
 		this->imgIndexs.push_back(catInd);
 		//if the size surpass the defined size, then  break
-		if (imgIndexs.size() > this->categoryNum) {
-			break;
-		}
-		
-
 	}
 	std::cout << " --> successfully scan UKB images path" << " read "<<this->imgIndexs.size()<<" imgs"<<std::endl;
 	return 1;
 }
 void UKB::UKBench::UKdataExt(int begin, int end, std::vector<std::string>& imgs, std::vector<int>& indexes) {
 	if (begin > end) { throw std::invalid_argument("Begin should smaller than end for indexing!"); }
-	auto first = this->imgPaths.begin()+begin;
-	auto last = this->imgPaths.begin()+end;
+	auto first = this->imgPaths.begin() + begin;
+	auto last = this->imgPaths.begin() + end;
 	std::vector<catPaths> subs(first,last);
 	indexes.reserve((end - begin) * 4);
 	for (int i = 0; i < subs.size(); i++) {
 		for (int j = 0; j < subs[i].size(); j++) {
 			imgs.push_back(subs[i][j]);
-			indexes.push_back(this->imgIndexs[begin+i*4+j]);
+			indexes.push_back(this->imgIndexs[(begin+i)*4+j]);
 		}
 	}
 }
+
 
 void UKB::UKBench::UKdataTrain(int n_catTrain) {
 	//iterate through the trainingset and train the kcenter
@@ -69,20 +70,21 @@ void UKB::UKBench::UKdataTrain(int n_catTrain) {
 		std::cout << "UKB train: Error: indicate training categories is larger than the ukbsets" << std::endl;
 		return;
 	}
-
+	
 	std::cout << "!------ Start Training with UKB data ------!" << std::endl;
 
 	int unit_train = 500;
 	int n_iter = n_catTrain / unit_train, begin, end;
 	cv::Mat allDescrips;
 	for (int i = 0; i < n_iter + 1; i++) {
-
 		begin = unit_train * i;
 		end = unit_train * (i + 1);
 		if (end > n_catTrain) { end = n_catTrain; }
 		if (begin == end) { break; }
 		std::vector<std::string> imgs;
 		std::vector<int> indexs;
+
+		std::cout << "the begin: " << begin << "\t the end: " << end << std::endl;
 		this->UKdataExt(begin, end, imgs, indexs);
 
 		//read and train descriptors, kpts
@@ -108,11 +110,15 @@ void UKB::UKBench::UKdataTrain(int n_catTrain) {
 	//write to file
 	std::vector<cv::KeyPoint> kpts;
 	fileManager::write_to_file("UKB_vlfeat_" + std::to_string(n_catTrain), kpts, kCenters);
-
 	std::cout << "!------ UKB training pogram ends here ------!" << std::endl;
 }
+
 void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::vector<int>& indexes) {
 	//sample the size number of imgs
+	if (size > this->categoryNum) {
+		throw std::invalid_argument("size exceeds the image databse size");
+	}
+
 	std::vector<int> pools(this->categoryNum);
 	std::iota(pools.begin(), pools.end(), 0);
 
@@ -130,126 +136,172 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 	//for each category sample images
 	imgs.clear();
 	imgs.reserve(size);
+
 	std::uniform_int_distribution<int> dist(0, 3);
 	for (int i = 0; i < size; i++) {
-		imgs.push_back(this->imgPaths[indexes[i]][dist(engine)]);
+		int ind1 = indexes[i], ind2 = dist(engine);
+		imgs.push_back(this->imgPaths[ind1][ind2]);
 	}
 }
 
 //arg[1] is the path to UKB imagesets
 //first argv should be the path to UKB image sets
-void UKB::UKtrain(int argc, const char* argv[]) {
+void UKB::UKtrain(int argc, const char* argv[], int numOfTrain) {
 	std::string trainFolder = argv[1];
-	UKBench ukb(trainFolder, 2550);
-	ukb.UKdataTrain(2550);
+	UKBench ukb(trainFolder, numOfTrain);
+	ukb.UKdataTrain(numOfTrain);
 }
 
 //1th argv: path to the kcenter file
 //2th argv: path to the UKB imagesets
-void UKB::UKtest(int argc, const char* argv[]) {
+void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 	//sample test categories
-	int sampleSize = 50; //find the best 4 for the sampled 50 images
+	//find the best 4 for the sampled 50 images
 	std::string testFolder = argv[2];
 	double score_sum = 0.0;
+	
 	//read the database images
-	UKBench ukb(testFolder, 2550);
-
+	UKBench ukb(testFolder, imgsetSize);
+	std::cout << " -->constructed test dataset with imgsets: " << ukb.imgIndexs.size() << std::endl;
 	std::vector<std::vector<float>> scores(sampleSize,std::vector<float>(ukb.imgIndexs.size()));
 
 	//read kcenters
 	cv::FileStorage reader;
 	reader.open(argv[1], cv::FileStorage::READ);
 	if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; return; }
+
 	//read kcenters
 	cv::Mat kCenters;
 	reader["kcenters"] >> kCenters;
 	reader.release();
 	
-	//start sampling 50 and get indexes
+	//start sampling and get indexes
 	std::vector<std::string> imgs;
 	std::vector<int> indexes;
 	ukb.UKdataSample(sampleSize, imgs, indexes);
+	std::cout <<std::endl<< " -->sampled " << sampleSize << " imgs from imgdatasets " << std::endl<<" --> with category indexes: "<<std::endl;
+	for (auto i : imgs) {
+		std::cout << i << std::endl;
+	}
+	std::cout << std::endl;
+
 	clock_t sTime = clock();
 
 	//read queryimage and store them for furture comparison
 	std::vector<igraph_t> query_graphs;
+	query_graphs.resize(sampleSize);
+	//if change the sampleprocess to multiprocess, then this has to be used
 
 	//build graphs for query images and store them for comparison
-	omp_set_num_threads(6);
+	for (int i = 0; i < sampleSize; i++) {
+		std::vector<std::string> trainPath;
+		trainPath.push_back(imgs[i]);
+		cv::Mat descripts1;
+		std::vector<cv::KeyPoint> kpts1;
+		
+		try {
+			extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			break;
+		};
+		std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
+		igraph_t mygraph1;
+		bool status = graph::build(matches, kpts1, mygraph1);
+		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+
+		//store all query graphs and prepare for comparing with UKBdatasets
+		igraph_copy(&query_graphs[i], &mygraph1);
+		igraph_destroy(&mygraph1);
+	}
+	std::cout << " -->finished query graphs building start iteration over database imgsets" << std::endl;
+	
+	//iterate the whole datasets and records the score
+	omp_set_num_threads(4);
 	#pragma omp parallel
 	{
-		#pragma omp for schedule(dynamic)
-		for (int i = 0; i < sampleSize; i++) {
-			std::vector<std::string> trainPath;
-			trainPath.push_back(imgs[i]);
-			cv::Mat descripts1;
-			std::vector<cv::KeyPoint> kpts1;
-			extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
-
-			std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
-			igraph_t mygraph1;
-			bool status = graph::build(matches, kpts1, mygraph1);
-			if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-
-			//store all query graphs and prepare for comparing with UKBdatasets
-			query_graphs.push_back(mygraph1);
-		}
-	}
-
-	//iterate the whole datasets and records the score
-
+	#pragma omp for schedule(dynamic)
 	for (int i = 0; i < ukb.imgPaths.size(); i++) {
-
 		//iterate the graphs and compute the score
 		for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
 			std::vector<std::string> trainPath;
 			trainPath.push_back(ukb.imgPaths[i][j]);
+
 			cv::Mat descripts2;
 			std::vector<cv::KeyPoint> kpts2;
-			extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
-
+			if ((4 * i + j) % 1000 == 0) {
+				std::cout << " --> milestone " << 4*i+j << " imgs"<<std::endl;
+			}
+			try {
+				extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
+			}
+			catch (std::invalid_argument& e) {
+				std::cout << e.what() << std::endl;
+				break;
+			};
 			//build graph and do comparing
 			std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts2);
 			igraph_t mygraph2;
 			bool status = graph::build(matches, kpts2, mygraph2);
 			if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-
-			//do comparison for the query 50 imgs
-			#pragma omp parallel
+			if (int(igraph_cattribute_GAN(&mygraph2, "vertices")) != 0)
 			{
-				#pragma omp for schedule(dynamic)
-				for (int k = 0; k < query_graphs.size(); k++) {
-					//do comparison for the graphs
-					kernel::robustKernel kernelObj(2, kCenters.rows);
-					kernelObj.push_back(query_graphs[k]);
-					kernelObj.push_back(mygraph2);
-					auto resMat = kernelObj.robustKernelCom();
-					//put score to the corresponding place
-					scores[k][i * 4 + j] = MATRIX(resMat, 0, 1);
-				}
+				/*fileManager::write_graph(mygraph2, fs::path(ukb.imgPaths[i][j]).stem().string(), "graphml");*/
 			}
+			//do comparison with whole query graphs
+			for (int k = 0; k < query_graphs.size(); k++) {
+				//do comparison for the graphs
+				kernel::robustKernel kernelObj(1, kCenters.rows);
+
+				//check if empty graph is tested
+				if (int(igraph_cattribute_GAN(&query_graphs[k], "vertices")) == 0|| int(igraph_cattribute_GAN(&mygraph2, "vertices"))==0) {
+					scores[k][i * 4 + j] = 0.0;
+					continue;
+				}
+				
+				kernelObj.push_back(query_graphs[k]);
+				kernelObj.push_back(mygraph2);
+				auto resMat = kernelObj.robustKernelCom();
+				//record score
+				scores[k][i * 4 + j] = MATRIX(resMat, 0, 1);
+			}
+			igraph_destroy(&mygraph2);
 		}
 	}
-	
+	}
+	//destory query_graphs
+	for (auto &i : query_graphs) {
+		igraph_destroy(&i);
+	}
+		
 	//return the first 4 highest score categories for the query
 	std::vector<int> indexes_local(ukb.imgIndexs.size());
 	std::iota(indexes_local.begin(), indexes_local.end(), 0);
 	for (int i = 0; i < sampleSize; i++) {
-		std::vector<int> temp = indexes_local;
+		std::vector<int> temp(indexes_local);
 
+		//cout score function
+		std::cout << "before index rerank: "<<std::endl;
+		for (int j = 0; j < scores[i].size(); j++) {
+			std::cout << scores[i][j] << " ";
+		}
+		std::cout << std::endl<<"after index rerank:"<<std::endl;
 		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] > scores[i][right]; });
-
+		//report temp after rerank
+		for (int j = 0; j < temp.size(); j++) {
+			std::cout << temp[j] << " ";
+		}
+		std::cout << std::endl << std::endl;
 		//get the first 4 numbers
 		double single_score = 0;
 		for(int j = 0; j < 4; j++) {
 			if (ukb.imgIndexs[temp[j]] == indexes[i]) {
-				single_score += 1.0;
-				
+				single_score += 1.0;	
 			}
 		}
 		score_sum += single_score;
 		std::cout << "score for the sampled img " << i << " : " << single_score << std::endl;
 	}
-	std::cout << "total mean score is " << score_sum / 50.0 << std::endl;
-
+	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
 }

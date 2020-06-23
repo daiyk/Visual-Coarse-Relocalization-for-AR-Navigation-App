@@ -10,5 +10,5 @@
   "numOfNN": 2,
   "maxNumDeg": 5,
   "radDegLim": 3,
-  "imgScale": 0.5
+  "imgScale": 1.0
 }

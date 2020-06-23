@@ -31,8 +31,8 @@ namespace UKB {
 		int categoryNum;
 	};
 
-	void UKtrain(int argc, const char* argv[]);
-	void UKtest(int argc, const char* argv[]);
+	void UKtrain(int argc, const char* argv[], int numOfTrain);
+	void UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 }
 
 #endif

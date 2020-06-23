@@ -8,6 +8,15 @@
 
 using namespace cv;
 using params = fileManager::parameters;
+
+bool graph::igraph_init::status = false;
+void graph::igraph_init::attri_init() {
+	if (status == false) {
+		igraph_i_set_attribute_table(&igraph_cattribute_table);
+		status = true;
+	}
+}
+
 void graph::graphTest() {
 	igraph_integer_t diameter; igraph_t graph;
 	igraph_rng_seed(igraph_rng_default(), 42);
@@ -31,15 +40,25 @@ bool graph::buildFull(igraph_t &graph, int n, bool directed) {
 	
 }
 
+
+//if matches is empty, a empty graph is returned
 bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph) {
 	//build from matches result and parameter setting
 	if (matches.size() > kpts.size()) {
-		std::cout << "graph.buld: matches size cannot bigger than the keypoint size!" << std::endl;
+		std::cout << "graph.buld: matches size cannot larger than the keypoint size!" << std::endl;
 		return false;
+	}
+	graph::igraph_init::attri_init();
+	//to ensure the graph building process, for zero matching graphs return empty graph
+	if (matches.size() == 0) {
+		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
+		SETGAN(&mygraph, "vertices", 0);
+		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
+		return true;
 	}
 	clock_t sTime = clock();
 	size_t n_vertices = matches.size();
-	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	
 	igraph_empty(&mygraph,n_vertices,IGRAPH_UNDIRECTED);
 	SETGAS(&mygraph, "name", "kernelGraph");  // set graph name attribute
 	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
@@ -66,7 +85,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	//initialization with continuous numbers
 	for (size_t i = 0; i < n_vertices; i++) {
 		size_t x = 0;
-		std::iota(indexes.col(i).data(), indexes.col(i).data()+n_vertices, x++); // sequence assignment for index value
+		std::iota(indexes.col(i).data(), indexes.col(i).data()+n_vertices, x); // sequence assignment for index value
 	}
 	//sort the distances and stores the indexes, col represents the sequence!
 	for (size_t i = 0; i < n_vertices; i++) {
@@ -125,7 +144,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_add_edges(&mygraph, &edge_vec, 0);
 
 	igraph_simplify(&mygraph, true, true, 0);
-	std::cout << " ->graph building spend " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec...." << std::endl;
+	/*std::cout << " ->graph building spend " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec...." << std::endl;*/
 	return true;
 
 }

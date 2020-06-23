@@ -62,6 +62,7 @@ def read_graph(path,scale):
         #resize img
         
         plt.imshow(img)
+        plt.title(path[i])
         nx.draw_networkx_nodes(G,pos,node_color=list(labs.values()),ax=ax)
         nx.draw_networkx_edges(G,pos)
         nx.draw_networkx_labels(G,pos,labels=labs)

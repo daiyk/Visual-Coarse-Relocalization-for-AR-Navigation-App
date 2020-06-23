@@ -20,7 +20,7 @@
 #include "StaticVRImg/cluster.h"
 
 //test keywords
-const char* keys =
+inline const char* keys =
 "{ help h |                  | Print help message. }"
 "{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
 "{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
@@ -34,7 +34,7 @@ const char* keys =
 	arg[1]: path to kcenter file
 	arg[2]: path to the img for graph building
 */
-int graphbuildTest(int argc, const char* argv[]) {
+inline int graphbuildTest(int argc, const char* argv[]) {
 	//testing the build function with graph
 	if (argc < 3) {
 		std::cout << "Please provides path to the dictionary and image!" << std::endl;
@@ -66,7 +66,7 @@ int graphbuildTest(int argc, const char* argv[]) {
 /*
 	Functions: test the function that read parameters from .json file
 */
-void readUserTest() {
+inline void readUserTest() {
 	std::string usersetting = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json";
 	fs::path userset(usersetting);
 	fileManager::read_user_set(userset);
@@ -80,7 +80,7 @@ void readUserTest() {
 /*
 	Function: verify the implementation of the Robust kernel matrix by manually build simple graphs and compute the Robust Kernel value
 */
-void graphKernelTest() {
+inline void graphKernelTest() {
 	
 	auto sTime = clock();
 	igraph_t testGraph;
@@ -149,7 +149,7 @@ void graphKernelTest() {
 *	arg3: path to image2 that does the image matching
 *	kptKeeper: the percentage of keypoints keep for comparison
 */
-void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1.0, int iterations=1) {
+inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1.0, int iterations=1) {
 	if (argc < 3) {
 		std::cout << "Please provides path to the dictionary and image!" << std::endl;
 	}
@@ -178,7 +178,7 @@ void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1
 
 	//use the filename as graph name
 	std::string graphName1 = fs::path(testImg1).stem().string();
-	fileManager::write_graph(mygraph1, graphName1, "graphml");
+	/*fileManager::write_graph(mygraph1, graphName1, "graphml");*/
 	trainPath.pop_back();
 
 
@@ -229,7 +229,7 @@ void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
 		std::string graphName2 = fs::path(testImg2).stem().string();
 		if (!writegraph) {
-			fileManager::write_graph(mygraph2, graphName2, "graphml");
+			/*fileManager::write_graph(mygraph2, graphName2, "graphml");*/
 			writegraph = true;
 		}
 		
@@ -262,7 +262,7 @@ void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKeeper = 1
 		read training files from arg path (argparser relies on FuntestVRN), testing the Robust kernel value under different kcenter centroid value
 	args: see FunTestVRN
 */
-int dictTest(int argc, const char* argv[]) {
+inline int dictTest(int argc, const char* argv[]) {
 
 	std::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
 	std::ofstream CSVOutput;
@@ -405,7 +405,6 @@ int dictTest(int argc, const char* argv[]) {
 
 }
 //int main(int argc, const char* argv[]) {
-//	igraph_i_set_attribute_table(&igraph_cattribute_table);
 //	readUserTest();
 //	double keeps = 1.0;
 //	graphBuildPlusKernelTest(argc, argv, keeps, 1);

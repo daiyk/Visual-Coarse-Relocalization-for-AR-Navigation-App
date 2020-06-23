@@ -40,7 +40,7 @@ matcher::vlad::vlad(std::vector<std::string>& paths, int numOfCenter):tree(nullp
     }
     this->kCenters = kCenters;
     std::vector<DMatch> matches;
-    std::cout << "start building kd-tree for matching......" << std::endl;
+    
     //kd-tree building
     int dim = params::descriptDim;
     int numOfTree = 1;
@@ -96,12 +96,16 @@ int matcher::vlad::search(std::vector<std::string>& queryImgs) {
 
 }
 std::vector<DMatch> matcher::kdTree(Mat& source, Mat& query) {
+    std::vector<DMatch> matches;
+    if (query.rows == 0) {
+        return matches;
+    }
     if (!source.isContinuous() || !query.isContinuous())
     {
         throw std::runtime_error("ERROR: source descriptors or query descriptor are not continuous, matching function terminated");
     }
-    std::vector<DMatch> matches;
-    std::cout << "start building kd-tree for matching......" << std::endl;
+    
+ 
     //kd-tree building
     int dim = params::descriptDim;
     int numOfTree = 1;
@@ -127,7 +131,7 @@ std::vector<DMatch> matcher::kdTree(Mat& source, Mat& query) {
     vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
     vl_kdforest_set_max_num_comparisons(tree, params::maxNumComp); // set max num of comparison
     int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), params::numOfNN, numQuery, NNdist.data(), query.ptr<float>(0));
-    std::cout << " -> total number of " << numOfleaf << " leafs are visited during kd-tree building" << std::endl;
+    /*std::cout << " -> total number of " << numOfleaf << " leafs are visited during kd-tree building" << std::endl;*/
 
     //build Dmatches and check the distance ratio to avoid false matching
     for (int i = 0; i < numQuery; i++)

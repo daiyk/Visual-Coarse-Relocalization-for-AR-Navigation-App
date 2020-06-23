@@ -155,8 +155,8 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
 
         }
     }
-    std::cout << "    -> total " << allDescripts.size() << " descriptors are created during the session" << endl;
-    std::cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+   /* std::cout << "    -> total " << allDescripts.size() << " descriptors are created during the session" << endl;
+    std::cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;*/
 }
 
 void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vector<KeyPoint>& cv_keypoints) {
