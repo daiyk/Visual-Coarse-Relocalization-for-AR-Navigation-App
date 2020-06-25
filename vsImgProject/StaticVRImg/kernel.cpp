@@ -20,11 +20,17 @@ kernel::robustKernel::robustKernel(int h_max, size_t n_labels):h_max(h_max),n_la
 }
 
 kernel::robustKernel::~robustKernel() {
+    //destory every graphs in the kernel container
+    for (auto& i : this->graphs) {
+        igraph_destroy(&i);
+    }
 }
 
-void kernel::robustKernel::push_back(igraph_t& newgraph) {
-    this->graphs.push_back(newgraph);
-    this->graphPrepro(newgraph);
+void kernel::robustKernel::push_back(igraph_t newgraph) {
+    igraph_t newpushgraph;
+    igraph_copy(&newpushgraph, &newgraph);
+    this->graphs.push_back(newpushgraph);
+    this->graphPrepro(newpushgraph);
 }
 
 void kernel::robustKernel::graphPrepro(igraph_t& graph) {
@@ -188,7 +194,7 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
             for (int j = i; j < n_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
                 auto& inv1 = this->inverted_indices[i];
                 auto& inv2 = this->inverted_indices[j];
-
+                
                 for (auto& val : label_sets) {
                     if (inv1.count(val) && inv2.count(val)) {
                         auto& vers1 = inv1[val];

@@ -74,7 +74,7 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             Mat grayImgFl;
             Mat1f imgDescrips;
             if (!fs::exists(fs::path(paths[i]))) {
-                cout << "Warning: " << paths[i] << " does not exist!" << endl;
+                cout << "vlfeat sift feature detection: Warning: " << paths[i] << " does not exist!" << endl;
                 continue;
             }
             cvtColor(cv::imread(paths[i]), grayImg, COLOR_BGR2GRAY);
@@ -225,8 +225,8 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     }
     //delete sift
     vl_sift_delete(vl_sift);
-    cout << "    -> total " << Descripts.size() << " descriptors are created during the session" << endl;
-    cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
+    /*cout << "    -> total " << Descripts.size() << " descriptors are created during the session" << endl;
+    cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;*/
 }
 
 

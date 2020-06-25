@@ -93,7 +93,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>D:\thesis\Visual-Coarse-Relocalization-for-AR-Navigation-App\3rdParty\jsoncpp\single_include;D:\thesis\Visual-Coarse-Relocalization-for-AR-Navigation-App\vsImgProject;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>MaxSpeed</Optimization>
-      <OpenMPSupport>false</OpenMPSupport>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

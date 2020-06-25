@@ -17,34 +17,15 @@ void main(int argc, const char* argv[]) {
 	std::cout << "center number: :" << fileManager::parameters::centers << std::endl;
 
 
-	//read kcenters
-	//cv::FileStorage reader;
-	//reader.open(argv[1], cv::FileStorage::READ);
-	//if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; return; }
-	////read kcenters
-	//cv::Mat kCenters;
-	//reader["kcenters"] >> kCenters;
-	//reader.release();
-	//std::vector<std::string> trainPath;
-	//trainPath.push_back("D:\\thesis\\ukbench\\full\\ukbench00082.jpg");
-	//cv::Mat descripts1;
-	//std::vector<cv::KeyPoint> kpts1;
-	//try {
-	//	extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
-	//}
-	//catch (std::invalid_argument& e) {
-	//	std::cout << e.what() << std::endl;
-	//};
-	//std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
-	//igraph_t mygraph1;
-	//bool status = graph::build(matches, kpts1, mygraph1);
-
 	//need to test the model for picture
-
-	/*UKB::UKtrain(argc, argv, 20);*/
-	UKB::UKtest(argc, argv, 2, 20);
-	/*graphBuildPlusKernelTest(argc, argv);*/
-
+	/*UKB::UKtrain(argc, argv, 1000);*/
+	if (argc == 3) {
+		UKB::UKtest(argc, argv, 80, 1000);
+	}
+	else if(argc==4)
+	{
+		graphBuildPlusKernelTest(argc, argv);
+	}
 	return;
 	
 }

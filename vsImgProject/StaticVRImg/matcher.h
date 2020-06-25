@@ -16,8 +16,18 @@ namespace matcher {
 		std::vector<cv::KeyPoint> source;
 		std::vector<cv::KeyPoint> refer;
 	};
-	matchOut kdTreeDemo(std::string& img1, std::string& img2, bool display=true);
-	std::vector<cv::DMatch> kdTree(cv::Mat &source, cv::Mat &query);
+
+	class kdTree {
+		public:
+			kdTree(cv::Mat& source);
+			~kdTree();
+			std::vector<cv::DMatch> search(cv::Mat& query);
+			static matchOut kdTreeDemo(std::string& img1, std::string& img2, bool display = true);
+		private:
+			VlKDForest* tree=nullptr;
+	};
+	
+	std::vector<cv::DMatch> opencvFlannMatcher(cv::Mat& source, cv::Mat& query);
 
 	class vlad {
 	public:

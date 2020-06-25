@@ -1,3 +1,6 @@
+#ifndef _GRAPHTEST_H
+#define _GRAPHTEST_H
+
 #include "StaticVRImg/graph.h"
 #include "StaticVRImg/extractor.h"
 #include "StaticVRImg/fileManager.h"
@@ -55,7 +58,8 @@ inline int graphbuildTest(int argc, const char* argv[]) {
 	extractor::vlimg_descips_compute(trainPath, descripts, kpts);
 
 	//do kd-tree on the source descriptors
-	std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts);
+	matcher::kdTree kdtreeMatcher(kCenters);
+	std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts);
 	igraph_t mygraph;
 	bool status = graph::build(matches, kpts, mygraph);
 	if (!status) { std::cout << "graph build failed! check your function." << std::endl; return 0; }
@@ -162,16 +166,25 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 	cv::Mat kCenters;
 	reader["kcenters"] >> kCenters;
 	reader.release();
+
 	//do matching on the two test image 
 	std::string testImg1(argv[2]);
-	std::vector<std::string> trainPath;
-	trainPath.push_back(testImg1);
 	cv::Mat descripts1;
 	std::vector<cv::KeyPoint> kpts1;
-	extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
+
+	if (!fs::exists(fs::path(testImg1))) {
+		std::cout << "vlfeat sift feature detection: Warning: " << testImg1 << " does not exist!" << std::endl;
+		return;
+	}
+	cv::Mat grayImg;
+	cv::cvtColor(cv::imread(testImg1), grayImg, cv::COLOR_BGR2GRAY);
+
+
+	extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
 	/*extractor::openCVimg_descips_compute(trainPath, descripts1, kpts1);*/
 	//do kd-tree on the source descriptors
-	std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
+	matcher::kdTree kdtreeMatcher(kCenters);
+	std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts1);
 	igraph_t mygraph1;
 	bool status = graph::build(matches, kpts1, mygraph1);
 	if (!status) { std::cout << "graph build failed! check your function." << std::endl;}
@@ -179,26 +192,30 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 	//use the filename as graph name
 	std::string graphName1 = fs::path(testImg1).stem().string();
 	/*fileManager::write_graph(mygraph1, graphName1, "graphml");*/
-	trainPath.pop_back();
-
 
 	//read and build graph for the second test image
 	//do matching on the two test image 
 	std::string testImg2(argv[3]);
-	trainPath.push_back(testImg2);
 	cv::Mat descripts2;
 	std::vector<cv::KeyPoint> kpts2;
-	extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
+
+	if (!fs::exists(fs::path(testImg2))) {
+		std::cout << "vlfeat sift feature detection: Warning: " << testImg2 << " does not exist!" << std::endl;
+		return;
+	}
+	cv::Mat grayImg2;
+	cv::cvtColor(cv::imread(testImg2), grayImg2, cv::COLOR_BGR2GRAY);
+	extractor::vlimg_descips_compute_simple(grayImg2, descripts2, kpts2);
 	//keep the percentage of kpts
 	std::vector<size_t> indKpts(descripts2.rows);
 	std::iota(std::begin(indKpts), std::end(indKpts), 0);
 
 	//set seed
-	std::vector<uint32_t> random_data(624);
+	/*std::vector<uint32_t> random_data(624);
 	std::random_device source;
 	std::generate(random_data.begin(), random_data.end(), std::ref(source));
 	std::seed_seq seeds(random_data.begin(), random_data.end());
-	std::mt19937 engine(seeds);
+	std::mt19937 engine(seeds);*/
 	bool writegraph = false;
 	//compute several random seeds
 	for (int i = 0; i < iterations; i++) {
@@ -211,19 +228,19 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		}
 		else
 		{
-			std::sample(indKpts.begin(), indKpts.end(), std::back_inserter(reserveKpts), size_t(descripts2.rows * kptKeeper), engine);
+			std::sample(indKpts.begin(), indKpts.end(), std::back_inserter(reserveKpts), size_t(descripts2.rows * kptKeeper), std::mt19937{ std::random_device{}() });
 			for (size_t i = 0; i < reserveKpts.size(); i++) {
 				reserveDescripts.push_back(descripts2.row(reserveKpts[i]));
 				reserveKpts2.push_back(kpts2[reserveKpts[i]]);
 			}
 		}
 		
-		
 		std::cout << "feature keeps percents: " << double(reserveDescripts.rows) / descripts2.rows << std::endl;
 		//sample for the 
 		/*extractor::openCVimg_descips_compute(trainPath, descripts2, kpts2);*/
 		//do kd-tree on the source descriptors
-		matches = matcher::kdTree(kCenters, reserveDescripts);
+		matches = kdtreeMatcher.search(reserveDescripts);
+
 		igraph_t mygraph2;
 		status = graph::build(matches, reserveKpts2, mygraph2);
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
@@ -235,7 +252,7 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		
 		auto sTime = clock();
 
-		//add to the graph bags and compute the matching score
+		//	//add to the graph bags and compute the matching score
 		kernel::robustKernel kernelObj(1, kCenters.rows);
 		kernelObj.push_back(mygraph2);
 		kernelObj.push_back(mygraph1);
@@ -245,12 +262,13 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		int cols = igraph_matrix_ncol(&resMat);
 		int rows = igraph_matrix_nrow(&resMat);
 
+		igraph_destroy(&mygraph2);
 		std::cout << i << "th iteration with random seeds" << std::endl;
 		for (int i = 0; i < cols; i++) {
-			std::cout << std::endl;
-			for (int j = 0; j < rows; j++) {
-				std::cout << MATRIX(resMat, i, j) << "\t";
-			}
+				std::cout << std::endl;
+				for (int j = 0; j < rows; j++) {
+					std::cout << MATRIX(resMat, i, j) << "\t";
+				}
 		}
 		std::cout << std::endl;		
 	}
@@ -312,7 +330,8 @@ inline int dictTest(int argc, const char* argv[]) {
 		}
 	
 	}
-	
+	matcher::kdTree kdtreeMatcher(kCenters);
+
 	//test different kcenters num
 	std::vector<int> centerNums = {100,150,200,250};
 	clock_t sTime = clock();
@@ -354,7 +373,7 @@ inline int dictTest(int argc, const char* argv[]) {
 			extractor::vlimg_descips_compute(testImgPath, descripts1, kpts1);
 		}
 		//do kd-tree on the source descriptors
-		std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
+		std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts1);
 		igraph_t mygraph1;
 		bool status = graph::build(matches, kpts1, mygraph1);
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
@@ -377,7 +396,7 @@ inline int dictTest(int argc, const char* argv[]) {
 		}
 
 		//do kd-tree on the source descriptors
-		matches = matcher::kdTree(kCenters, descripts2);
+		matches = kdtreeMatcher.search(descripts2);
 		igraph_t mygraph2;
 		status = graph::build(matches, kpts2, mygraph2);
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
@@ -404,6 +423,9 @@ inline int dictTest(int argc, const char* argv[]) {
 	}
 
 }
+
+
+#endif // !_GRAPHTEST_H
 //int main(int argc, const char* argv[]) {
 //	readUserTest();
 //	double keeps = 1.0;

@@ -123,11 +123,13 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 	std::iota(pools.begin(), pools.end(), 0);
 
 	//set seed
-	std::vector<uint32_t> random_data(624);
+	/*std::vector<uint32_t> random_data(624);
 	std::random_device source;
 	std::generate(random_data.begin(), random_data.end(), std::ref(source));
 	std::seed_seq seeds(random_data.begin(), random_data.end());
-	std::mt19937 engine(seeds);
+	std::mt19937 engine(seeds);*/
+	std::random_device rd;  //Will be used to obtain a seed for the random number engine
+	std::mt19937 engine(rd()); //Standard mersenne_twister_engine seeded with rd()
 	indexes.clear();
 	indexes.reserve(size);
 	//sample
@@ -144,6 +146,7 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 	}
 }
 
+//BBF-kmeans clustering
 //arg[1] is the path to UKB imagesets
 //first argv should be the path to UKB image sets
 void UKB::UKtrain(int argc, const char* argv[], int numOfTrain) {
@@ -163,7 +166,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 	//read the database images
 	UKBench ukb(testFolder, imgsetSize);
 	std::cout << " -->constructed test dataset with imgsets: " << ukb.imgIndexs.size() << std::endl;
-	std::vector<std::vector<float>> scores(sampleSize,std::vector<float>(ukb.imgIndexs.size()));
+	std::vector<std::vector<double>> scores(sampleSize,std::vector<double>(ukb.imgIndexs.size()));
 
 	//read kcenters
 	cv::FileStorage reader;
@@ -175,6 +178,9 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 	reader["kcenters"] >> kCenters;
 	reader.release();
 	
+	//build kdtree
+	matcher::kdTree kdtreeMatcher(kCenters);
+
 	//start sampling and get indexes
 	std::vector<std::string> imgs;
 	std::vector<int> indexes;
@@ -190,30 +196,33 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 	//read queryimage and store them for furture comparison
 	std::vector<igraph_t> query_graphs;
 	query_graphs.resize(sampleSize);
-	//if change the sampleprocess to multiprocess, then this has to be used
 
 	//build graphs for query images and store them for comparison
 	for (int i = 0; i < sampleSize; i++) {
-		std::vector<std::string> trainPath;
-		trainPath.push_back(imgs[i]);
+		/*std::vector<std::string> trainPath;
+		trainPath.push_back(imgs[i]);*/
 		cv::Mat descripts1;
 		std::vector<cv::KeyPoint> kpts1;
+
+		if (!fs::exists(fs::path(imgs[i]))) {
+			std::cout << "vlfeat sift feature detection: Warning: " << imgs[i] << " does not exist!" << std::endl;
+			continue;
+		}
+		cv::Mat grayImg;
+		cv::cvtColor(cv::imread(imgs[i]), grayImg, cv::COLOR_BGR2GRAY);
 		
 		try {
-			extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
+			extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
 		}
 		catch (std::invalid_argument& e) {
 			std::cout << e.what() << std::endl;
 			break;
 		};
-		std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts1);
-		igraph_t mygraph1;
-		bool status = graph::build(matches, kpts1, mygraph1);
+		std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts1);
+		bool status = graph::build(matches, kpts1, query_graphs[i]);
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
 
 		//store all query graphs and prepare for comparing with UKBdatasets
-		igraph_copy(&query_graphs[i], &mygraph1);
-		igraph_destroy(&mygraph1);
 	}
 	std::cout << " -->finished query graphs building start iteration over database imgsets" << std::endl;
 	
@@ -225,8 +234,12 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 	for (int i = 0; i < ukb.imgPaths.size(); i++) {
 		//iterate the graphs and compute the score
 		for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
-			std::vector<std::string> trainPath;
-			trainPath.push_back(ukb.imgPaths[i][j]);
+			if (!fs::exists(fs::path(ukb.imgPaths[i][j]))) {
+				std::cout << "vlfeat sift feature detection: Warning: " << ukb.imgPaths[i][j] << " does not exist!" << std::endl;
+				continue;
+			}
+			cv::Mat grayImg;
+			cv::cvtColor(cv::imread(ukb.imgPaths[i][j]), grayImg, cv::COLOR_BGR2GRAY);
 
 			cv::Mat descripts2;
 			std::vector<cv::KeyPoint> kpts2;
@@ -234,14 +247,14 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 				std::cout << " --> milestone " << 4*i+j << " imgs"<<std::endl;
 			}
 			try {
-				extractor::vlimg_descips_compute(trainPath, descripts2, kpts2);
+				extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
 			}
 			catch (std::invalid_argument& e) {
 				std::cout << e.what() << std::endl;
 				break;
 			};
 			//build graph and do comparing
-			std::vector<cv::DMatch> matches = matcher::kdTree(kCenters, descripts2);
+			std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts2);
 			igraph_t mygraph2;
 			bool status = graph::build(matches, kpts2, mygraph2);
 			if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
@@ -257,14 +270,16 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 				//check if empty graph is tested
 				if (int(igraph_cattribute_GAN(&query_graphs[k], "vertices")) == 0|| int(igraph_cattribute_GAN(&mygraph2, "vertices"))==0) {
 					scores[k][i * 4 + j] = 0.0;
+					kernelObj.~robustKernel();
 					continue;
 				}
 				
 				kernelObj.push_back(query_graphs[k]);
 				kernelObj.push_back(mygraph2);
-				auto resMat = kernelObj.robustKernelCom();
+				igraph_matrix_t resMat = kernelObj.robustKernelCom();
 				//record score
 				scores[k][i * 4 + j] = MATRIX(resMat, 0, 1);
+				kernelObj.~robustKernel();
 			}
 			igraph_destroy(&mygraph2);
 		}
@@ -282,16 +297,18 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize,int imgsetSize) {
 		std::vector<int> temp(indexes_local);
 
 		//cout score function
-		std::cout << "before index rerank: "<<std::endl;
+		/*std::cout << "before index rerank: "<<std::endl;
 		for (int j = 0; j < scores[i].size(); j++) {
 			std::cout << scores[i][j] << " ";
-		}
+		}*/
+
 		std::cout << std::endl<<"after index rerank:"<<std::endl;
 		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] > scores[i][right]; });
 		//report temp after rerank
-		for (int j = 0; j < temp.size(); j++) {
+		/*for (int j = 0; j < temp.size(); j++) {
 			std::cout << temp[j] << " ";
-		}
+		}*/
+
 		std::cout << std::endl << std::endl;
 		//get the first 4 numbers
 		double single_score = 0;

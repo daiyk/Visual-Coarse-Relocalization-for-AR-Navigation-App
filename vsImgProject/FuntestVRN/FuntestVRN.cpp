@@ -47,7 +47,7 @@ int main(int argc, const char* argv[]) {
     cout << "->total files found: " << trainPaths.size() + testPaths.size() << endl;
     if (readResult.mode== fileManager::ArgType::MODE_MATCHING) {
         VL_PRINT("!------- Start image matching with vlfeat ------!\n");
-        matcher::kdTreeDemo(trainPaths[0],trainPaths[1]);
+        matcher::kdTree::kdTreeDemo(trainPaths[0],trainPaths[1]);
         VL_PRINT("!------- This program stop here ------!\n");
         return 0;
     }

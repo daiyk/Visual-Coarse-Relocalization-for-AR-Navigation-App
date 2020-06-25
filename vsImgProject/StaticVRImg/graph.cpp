@@ -42,6 +42,7 @@ bool graph::buildFull(igraph_t &graph, int n, bool directed) {
 
 
 //if matches is empty, a empty graph is returned
+//mygraph must be a uninit graph
 bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph) {
 	//build from matches result and parameter setting
 	if (matches.size() > kpts.size()) {

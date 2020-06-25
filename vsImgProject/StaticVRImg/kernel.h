@@ -11,7 +11,7 @@ namespace kernel {
 	public:
 		robustKernel(int h_max, size_t n_labels);
 		~robustKernel();
-		void push_back(igraph_t &newgraph);
+		void push_back(igraph_t newgraph);
 		void graphPrepro(igraph_t& graph);
 		igraph_matrix_t robustKernelCom();
 		double robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j,double edge_norm);
