@@ -37,17 +37,46 @@ int fileManager::parameters::maxNumComp = 200; //sift paper setting
 int fileManager::parameters::numOfNN = 2; //sift paper setting
 double fileManager::parameters::distRat = 0.8; // sift paper setting for threshold
 
+//vlad setting
+int fileManager::parameters::vladCenters = 16; //default vlad centers
+
 //graph building relevent setting
 size_t fileManager::parameters::maxNumDeg = 5; //
 double fileManager::parameters::radDegLim = std::numeric_limits<double>::infinity(); //default infinity
 
 
+/*Args:
+*   paths: must be empty string vector, the scaned file paths are stored here
+*   path: string of path to the folder for scan files
+*/
+void fileManager::read_files_in_path(std::string path, std::vector<std::string> &paths){
+    fs::path imgs_path = path;
+    if (!imgs_path.empty() && !fs::exists(imgs_path)) {
+        cout << "Mode Train: ERROR: provided imgs path doesn't exist!" << endl;
+    }
+    paths.clear();
+    for (const auto& entry : fs::directory_iterator(imgs_path)) {
+        std::string::size_type idx;
+        idx = entry.path().string().rfind('.');
+        if (idx != std::string::npos)
+        {
+            std::string extension = entry.path().string().substr(idx + 1);
+            if (extension == "jpg" || extension == "JPG" || extension == "JPEG") {
+                paths.push_back(entry.path().string());
+                cout << "Files in Path: img is added with: " << entry.path().string() << "......" << endl;
+            }
+            else {
+                cout << "File in path: img " + entry.path().string() + ": Extension " + extension + " is not supported dismiss the image." << endl;
+            }
+        }
+    }
+
+}
+
 void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& kCenters) {
     if (!fs::exists("Result")) {
         fs::create_directories("Result");
     }
-    
-
     //keypoint write to file
     if (!kpts.empty()) {
         std::ofstream CSVOutput;
@@ -153,7 +182,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
         if (!fs::exists(train_path)) {
             throw std::invalid_argument("Mode Train: Training subfolder of provided path doesn't exist!");
         }
-        else if (!fs::exists(train_path)) {
+        else if (!fs::exists(test_path)) {
             std::cerr << "Mode Train: WARNING: test subfolder for provided path doesn't exist! read training imgs from training path......" << endl;
         }
         else {
@@ -304,6 +333,7 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::imgScale = jsonlist.value("imgScale", fileManager::parameters::imgScale);
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
     fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
+    fileManager::parameters::vladCenters = jsonlist.value("vladCenters", fileManager::parameters::vladCenters);
 }
 
 /*

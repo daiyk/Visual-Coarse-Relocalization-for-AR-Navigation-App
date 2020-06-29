@@ -10,5 +10,6 @@
   "numOfNN": 2,
   "maxNumDeg": 5,
   "radDegLim": 3,
-  "imgScale": 1.0
+  "imgScale": 1.0,
+  "vladCenters": 64
 }

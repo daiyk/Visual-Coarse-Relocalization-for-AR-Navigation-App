@@ -28,16 +28,6 @@ namespace matcher {
 	};
 	
 	std::vector<cv::DMatch> opencvFlannMatcher(cv::Mat& source, cv::Mat& query);
-
-	class vlad {
-	public:
-		vlad(std::vector<std::string>& paths, int numOfCenter);
-		int search(std::vector<std::string>& queryImgs);
-	private:
-		VlKDForest* tree;
-		std::vector<float> enc;
-		cv::Mat kCenters;
-	};
 }
 
 #endif

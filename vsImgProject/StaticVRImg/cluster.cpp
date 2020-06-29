@@ -24,9 +24,9 @@ void cluster::openCV_visual_words_compute(cv::Mat& allDescripts, cv::Mat& kCente
     cout << "->successfully produce cluster centers MAT with size: " << kCenters.rows << endl;
     cout << "-> kmeans learning spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
-void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
+void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters, int centers) {
     clock_t sTime = clock();
-    cout << "start k-means learning with " << params::centers << " centers..." << endl;
+    cout << "start k-means learning with " << centers << " centers..." << endl;
     //all kmeans parameters setting corresponding with OpenCV setting
     int dim = 128;
     size_t numOfpts = allDescrip.rows;
@@ -37,11 +37,11 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
     //data row major
     float* data = allDescrip.ptr<float>(0);
     //check kmeans setting
-    if (params::centers > allDescrip.rows) {
+    if (centers > allDescrip.rows) {
         std::cout << "Kmeans: centers number exceeds the descriptor's number reset the No.centers to " << allDescrip.rows << " instead" << endl;
-        params::centers = allDescrip.rows;
+        centers = allDescrip.rows;
     }
-    vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, params::centers);
+    vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, centers);
 
     vl_kmeans_set_num_repetitions(km, 3);
 
@@ -61,7 +61,7 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters) {
 
     //iterate and stores the kcenters as cv::Mat
     cv::Mat1f centerDescrip(1, dim);
-    for (int i = 0; i < params::centers; i++) {
+    for (int i = 0; i < centers; i++) {
         for (int j = 0; j < dim; j++) {
             centerDescrip(0, j) = center_ptr[i * dim + j];
         }

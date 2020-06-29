@@ -30,9 +30,10 @@ namespace UKB {
 		std::vector<int> imgIndexs;
 		int categoryNum;
 	};
-
+	void UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSize);
+	void UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 	void UKtrain(int argc, const char* argv[], int numOfTrain);
 	void UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 }
 
-#endif
+#endif //!_UKSETS_H

@@ -163,6 +163,7 @@
     <ClInclude Include="constAndTypes.h" />
     <ClInclude Include="extractor.h" />
     <ClInclude Include="fileManager.h" />
+    <ClInclude Include="FLANN.h" />
     <ClInclude Include="graph.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="kernel.h" />
@@ -173,6 +174,7 @@
     <ClCompile Include="cluster.cpp" />
     <ClCompile Include="extractor.cpp" />
     <ClCompile Include="fileop.cpp" />
+    <ClCompile Include="FLANN.cpp" />
     <ClCompile Include="graph.cpp" />
     <ClCompile Include="kernel.cpp" />
     <ClCompile Include="matcher.cpp" />

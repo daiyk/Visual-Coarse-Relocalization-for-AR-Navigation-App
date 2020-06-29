@@ -42,6 +42,9 @@
     <ClInclude Include="vlad.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FLANN.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cluster.cpp">
@@ -63,6 +66,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vlad.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FLANN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

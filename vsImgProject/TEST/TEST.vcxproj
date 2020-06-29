@@ -144,7 +144,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="FLANN.h" />
     <ClCompile Include="Graphtest.h" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="UKsets.cpp" />

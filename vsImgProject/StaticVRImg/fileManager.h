@@ -58,11 +58,15 @@ namespace fileManager {
 		static int numOfNN; // number of nearest neighbors extracted from kdtree comparison 
 		static int maxNumComp; // maximum number of comparison during kdtree searching
 
+		//vlad setting
+		static int vladCenters;
 		//graph building relevent setting
 		static size_t maxNumDeg;
 		static double radDegLim; //the radius limits for edge connection, limits the edge < radDegLim*pts.scale
 	};
 	ArgList funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths, const char* keys);
+	
+	void read_files_in_path(std::string path, std::vector<std::string> &paths);
 	void write_to_file(std::string name, std::vector<cv::KeyPoint>& kpts, cv::Mat& kCenters);
 	void write_graph(igraph_t& graph, std::string name, std::string mode);
 	void read_user_set(fs::path params= user_set_default);

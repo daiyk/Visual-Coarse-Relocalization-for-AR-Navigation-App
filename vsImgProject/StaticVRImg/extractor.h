@@ -12,6 +12,7 @@ namespace extractor {
 	void vlimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& cv_keypoints);
 
 	//simple single image descriptor computing
+	//img1: must be grayImg
 	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints);
 }
 #endif // ! _DESCRIP_EXT_H

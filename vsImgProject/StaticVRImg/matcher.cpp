@@ -11,7 +11,6 @@
 
 extern "C" {
     #include "vl/kdtree.h"
-    #include "vl/vlad.h"
     #include "vl/kmeans.h"
 }
 using params = fileManager::parameters;

@@ -18,9 +18,6 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FLANN.h">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="Graphtest.h">
       <Filter>Header Files</Filter>
     </ClCompile>

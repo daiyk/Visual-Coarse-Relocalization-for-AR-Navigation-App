@@ -13,11 +13,15 @@ extern "C" {
 namespace vlad {
 	class vlad {
 	public:
-		vlad(std::vector<std::string>& paths, int numOfCenter);
-		int search(cv::Mat img);
+		vlad(std::vector<std::string>& paths); //training and writing the centers, encoder
+		vlad(std::string centerPath, std::string encPath); //read the centers and encoder 
+		void search(cv::Mat img, std::vector<int>& ind, std::vector<double>& score, int bestOfAll); //img must be grayImg
+		cv::Mat1f& getEncoder() { return this->enc; }
 	private:
+		void write_to_file(std::string name);
+		void enc_index(cv::Mat1f& query, std::vector<int>& ind, std::vector<double>& score, int bestOfAll);
 		VlKDForest* tree;
-		std::vector<float> enc;
+		cv::Mat1f enc;
 		cv::Mat kCenters;
 	};
 }
