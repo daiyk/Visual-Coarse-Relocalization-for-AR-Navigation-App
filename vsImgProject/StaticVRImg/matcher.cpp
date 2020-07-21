@@ -4,6 +4,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
+#include <opencv2/calib3d.hpp>
 #include <filesystem>
 #include "extractor.h"
 #include "fileManager.h"
@@ -156,6 +157,20 @@ std::vector<cv::DMatch> matcher::opencvFlannMatcher(cv::Mat& source, cv::Mat& qu
         }
     }
     return good_matches;
+}
+
+void matcher::RANSC(cv::Mat& sourceDescrips, std::vector<cv::KeyPoint> &sourcekpts, cv::Mat& queryDescrips, std::vector<cv::KeyPoint>& querykpts, cv::Mat& mask, cv::Mat& homo) {
+    matcher::kdTree matches(sourceDescrips);
+    auto bestMatches = matches.search(queryDescrips);
+
+    //records the matching keypoints by the matching result
+    std::vector<cv::Point2f> matchkpts1;
+    std::vector<cv::Point2f> matchkpts2;
+    for (int i = 0; i < bestMatches.size(); i++) {
+        matchkpts1.push_back(sourcekpts[bestMatches[i].trainIdx].pt);
+        matchkpts2.push_back(querykpts[bestMatches[i].queryIdx].pt);
+    }
+    homo = cv::findHomography(matchkpts1, matchkpts2, mask, cv::RANSAC);
 }
 
 

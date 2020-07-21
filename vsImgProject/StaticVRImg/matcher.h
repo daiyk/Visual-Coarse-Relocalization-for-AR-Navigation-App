@@ -9,7 +9,6 @@ extern "C" {
 	#include "vl/kdtree.h"
 }
 
-
 namespace matcher {
 	struct matchOut {
 		std::vector<cv::DMatch> matches;
@@ -28,6 +27,7 @@ namespace matcher {
 	};
 	
 	std::vector<cv::DMatch> opencvFlannMatcher(cv::Mat& source, cv::Mat& query);
+	void RANSC(cv::Mat& sourceDescrips, std::vector<cv::KeyPoint>& sourcekpts, cv::Mat& queryDescrips, std::vector<cv::KeyPoint>& querykpts, cv::Mat &mask, cv::Mat &homo);
 }
 
 #endif

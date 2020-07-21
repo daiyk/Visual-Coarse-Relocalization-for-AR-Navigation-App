@@ -21,7 +21,7 @@ int fileManager::parameters::firstOctaveInd = -1; // learning start from 1th oct
 double fileManager::parameters::sigma_0 = 1.6; // sigma for the #0 octave
 int fileManager::parameters::centers = 200;    // k-means center detection, defines the number of centers
 int fileManager::parameters::numOfAttemp = 5; //times of try to compute the center for each cluster, five times to choose the best one
-int fileManager::parameters::numOfItera = 20;
+int fileManager::parameters::numOfItera = 20; 
 int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
@@ -44,6 +44,13 @@ int fileManager::parameters::vladCenters = 16; //default vlad centers
 size_t fileManager::parameters::maxNumDeg = 5; //
 double fileManager::parameters::radDegLim = std::numeric_limits<double>::infinity(); //default infinity
 
+//test relative setting
+int fileManager::parameters::sampleSize = 0;
+int fileManager::parameters::imgsetSize = 0;
+
+//covismap relavent setting
+double fileManager::parameters::PCliques = 0.05;
+double fileManager::parameters::PCommonwords = 0.04;
 
 /*Args:
 *   paths: must be empty string vector, the scaned file paths are stored here
@@ -81,9 +88,9 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
     if (!kpts.empty()) {
         std::ofstream CSVOutput;
         int nKpts = kpts.size();
-        CSVOutput.open(std::string("Result/" + name + "_statistics_" + std::to_string(nKpts) + "_" + dateTime() + ".csv"), std::fstream::out | std::fstream::app);
+        CSVOutput.open(std::string("Result/" + name + "_statistics_" + std::to_string(nKpts) + "_" + helper::dateTime() + ".csv"), std::fstream::out | std::fstream::app);
         //input stream for headers
-        CSVOutput << "Oritentation" << "," << "Octave" << "," << "layer" << "," << "pt.x" << "," << "pt.y" << "," << "scale" << "\n";
+        CSVOutput << "Oritentation" << "," << "Oc`tave" << "," << "layer" << "," << "pt.x" << "," << "pt.y" << "," << "scale" << "\n";
 
         //write data to the file
         int numOkpt = kpts.size();
@@ -92,7 +99,7 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
             auto kp = kpts[i];
             int noctave, nlayer;
             float vscale;
-            unpackOctave(kp, noctave, nlayer, vscale);
+            helper::unpackOctave(kp, noctave, nlayer, vscale);
             if (noctave > max_noctave) {
                 max_noctave = noctave;
             }
@@ -133,21 +140,16 @@ void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, M
     }
     ArgList cmd; //add arg options to this variables
 
-    /*Mat img1 = imread(samples::findFile(parser.get<String>("input1"), false), IMREAD_GRAYSCALE);
-    Mat img2 = imread(samples::findFile(parser.get<String>("input2"), false), IMREAD_GRAYSCALE);*/
-    /**
-     * if path is provided, we compute the correspondence
-     *
-     * */
-   /* if (argc > 4) {
-        throw std::invalid_argument("provided arguments out of range! please check -h for details");
-    }*/
-    /**if (argc == 2 && img1.empty() || img2.empty()) {
-        throw std::invalid_argument("please specify only either -path or -img!");
-
-    }**/
-   
+    String homo = parser.get<String>("homo");
     String tool = parser.get<String>("tool");
+
+    if (homo == "true") {
+        cmd.homo = true;
+    }
+    else if(homo !="false")
+    {
+        throw std::invalid_argument("-homo= " + homo + " is not supported");
+    }
     if (tool == "vlfeat") {
         cmd.tool = ArgType::TOOL_VLFEAT;
     }
@@ -305,13 +307,13 @@ void fileManager::read_user_set(fs::path params) {
     json jsonlist;
     if (!fs::exists(params)) {
         cout << "Read Params: provided user setting .json doesn't exist!" << endl;
-        throw std::invalid_argument("PATH_NOT_EXIST");
+        throw std::invalid_argument("USER_SET_FILE_PATH_NOT_EXIST");
     }
 
     ifstream f(params.c_str());
     if (!f) {
         std::cout << "Read Parameters: file read failed" << endl;
-        throw std::runtime_error("READ_FAILED");
+        throw std::runtime_error("USER_SET_FILE_READ_FAILED");
     }
     //check the status, throw exception for error
     f >> jsonlist;
@@ -334,6 +336,10 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
     fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
     fileManager::parameters::vladCenters = jsonlist.value("vladCenters", fileManager::parameters::vladCenters);
+    fileManager::parameters::sampleSize = jsonlist.value("sampleSize", fileManager::parameters::sampleSize);
+    fileManager::parameters::imgsetSize = jsonlist.value("imgsetSize", fileManager::parameters::imgsetSize);
+    fileManager::parameters::PCliques = jsonlist.value("imgsetSize", fileManager::parameters::PCliques);
+    fileManager::parameters::PCommonwords = jsonlist.value("imgsetSize", fileManager::parameters::PCommonwords);
 }
 
 /*

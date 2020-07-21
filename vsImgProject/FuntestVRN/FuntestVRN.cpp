@@ -20,7 +20,8 @@ const char* keys =
 "{ help h |                  | Print help message. }"
 "{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
 "{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
-"{ path   |                  | Path to the image folder, set mode for different processing ways }";
+"{ path   |                  | Path to the image folder, set mode for different processing ways }"
+"{ homo   |      false       | whether to compute the homograph between two images }";
 
 int main(int argc, const char* argv[]) {
     VL_PRINT("!------- staticVRImg Lib Function Test Program Starts! ------!\n");
@@ -60,7 +61,8 @@ int main(int argc, const char* argv[]) {
         clock_t sTime = clock();
         //start vlfeat sift feature detection
         try {
-            extractor::vlimg_descips_compute(trainPaths, allDescrips, keypoints);
+            Mat testImg = imread(trainPaths[0], IMREAD_GRAYSCALE);
+            extractor::vlimg_descips_compute_simple(testImg, allDescrips, keypoints);
         }
         catch (std::invalid_argument& e) {
             cout << e.what() << endl;
@@ -79,13 +81,18 @@ int main(int argc, const char* argv[]) {
         }
         //demo
         else if (readResult.mode==fileManager::ArgType::MODE_DEMO) { 
-            Mat outImg, purImg;
-            outImg = imread(trainPaths[0]);
-            cv::resize(outImg, purImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
-            outImg = purImg;
-            cv::drawKeypoints(purImg, keypoints, outImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            Mat vlfeatoutImg, vlfeatpurImg;
+            vlfeatoutImg = imread(trainPaths[0]);
+            cv::resize(vlfeatoutImg, vlfeatoutImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
+            /*outImg = purImg;*/
+            cv::drawKeypoints(vlfeatoutImg, keypoints, vlfeatpurImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            if (readResult.homo) {
+
+            }
             namedWindow("vlfeat detection Img", WINDOW_NORMAL);
-            imshow("vlfeat detection Img", outImg);
+            imshow("vlfeat detection Img", vlfeatpurImg);
+            imwrite("Result/vlfeat_detection_Img.jpg", vlfeatpurImg);
+            
         }
         cout << "-> vlfeat SIFT detection / Kmeans learning totally spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
     }
@@ -93,6 +100,9 @@ int main(int argc, const char* argv[]) {
     //openCV pipeline
     if (readResult.tool==fileManager::ArgType::TOOL_OPENCV_AND_VLFEAT || readResult.tool ==fileManager::ArgType::TOOL_OPENCV) {
         VL_PRINT("!------- OpenCV ------!\n");
+        //clear trainPath and keypoints
+        allDescrips.release();
+        keypoints.clear();
         clock_t sTime = clock();
         try {
             extractor::openCVimg_descips_compute(trainPaths, allDescrips, keypoints);
@@ -112,11 +122,12 @@ int main(int argc, const char* argv[]) {
         else if (readResult.mode==fileManager::ArgType::MODE_DEMO) {
             Mat outImg, purImg;
             outImg = imread(trainPaths[0]);
-            cv::resize(outImg, purImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
-            outImg = purImg;
-            drawKeypoints(purImg, keypoints, outImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-            namedWindow("opencv feat detect Img", WINDOW_NORMAL);
-            imshow("opencv feat detect Img", outImg);
+            cv::resize(outImg, outImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
+            /*purImg.copyTo(outImg);*/
+            drawKeypoints(outImg, keypoints, purImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+            namedWindow("opencv_feat_detect_Img", WINDOW_NORMAL);
+            imshow("opencv_feat_detect_Img", purImg);
+            imwrite("Result/opencv_detection_Img.jpg", purImg);
         }
         cout << "-> opencv SIFT detection / Kmeans learning totally spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
         //write important data to file

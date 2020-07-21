@@ -71,5 +71,8 @@
     <ClCompile Include="FLANN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="helper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

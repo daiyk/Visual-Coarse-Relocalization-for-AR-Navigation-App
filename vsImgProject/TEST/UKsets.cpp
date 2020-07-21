@@ -4,18 +4,19 @@
 #include "StaticVRImg/kernel.h"
 #include "StaticVRImg/vlad.h"
 #include "StaticVRImg/FLANN.h"
+#include "StaticVRImg/helper.h"
 #include <random>
 #include <omp.h>
+#include <fstream>
 
-
+//ith arg: path to the ukbdata
 void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//read UKBench data
 	//sample test categories
-	//find the best 4 for the sampled 50 images
+	//find the best 4 for the sampled images
 	std::string testFolder = argv[1];
-	std::string kCenterPath = argv[2];
 	double score_sum = 0.0;
-
+	std::vector<double> single_scores(sampleSize, 0.0);
 	//read the database images
 	UKBench ukb(testFolder, imgsetSize);
 	std::vector<std::vector<double>> scores(sampleSize, std::vector<double>(ukb.imgIndexs.size()));
@@ -57,9 +58,9 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 
 	//iterate through all ukb datasets and compute the score
 	omp_set_num_threads(4);
-	#pragma omp parallel
+#pragma omp parallel
 	{
-		#pragma omp for schedule(dynamic)
+#pragma omp for schedule(dynamic)
 		for (int i = 0; i < ukb.imgPaths.size(); i++) {
 			//iterate the graphs and compute the score
 			for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
@@ -86,7 +87,7 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 				for (int k = 0; k < sampleSize; k++) {
 					std::vector<cv::DMatch> matches;
 					FLANN::FLANNMatch(descripts2, allDescripts[k], matches);
-					scores[k][4*i+j]= FLANN::FLANNScore(matches);
+					scores[k][4 * i + j] = FLANN::FLANNScore(matches);
 				}
 
 			}
@@ -102,25 +103,23 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 			std::cout << scores[i][j] << " ";
 		}*/
 
-		std::cout << std::endl << "after index rerank:" << std::endl;
 		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] < scores[i][right]; });
 		//report temp after rerank
 		/*for (int j = 0; j < temp.size(); j++) {
 			std::cout << temp[j] << " ";
 		}*/
 
-		std::cout << std::endl << std::endl;
+		/*std::cout << std::endl << std::endl;*/
 		//get the first 4 numbers
-		double single_score = 0;
 		for (int j = 0; j < 4; j++) {
 			if (ukb.imgIndexs[temp[j]] == indexes[i]) {
-				single_score += 1.0;
+				single_scores[i] += 1.0;
 			}
 		}
-		score_sum += single_score;
-		std::cout << "score for the sampled img " << i << " : " << single_score << std::endl;
+		score_sum += single_scores[i];
 	}
 	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
+	UKB::UKResWriter("UKFLANN_sample_" + std::to_string(sampleSize), single_scores);
 }
 //vlad test on ULB datasets
 //1th arg: path to ukb full imgs folder path
@@ -134,6 +133,7 @@ void UKB::UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSiz
 	std::string kCenterPath = argv[2];
 	std::string vladEncPath = argv[3];
 	double score_sum = 0.0;
+	std::vector<double> single_scores(sampleSize, 0.0);
 
 	//read the database images
 	UKBench ukb(testFolder, imgsetSize);
@@ -146,6 +146,7 @@ void UKB::UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSiz
 	std::vector<std::string> imgs;
 	std::vector<int> indexes;
 	ukb.UKdataSample(sampleSize, imgs, indexes);
+	
 	std::cout << std::endl << " -->sampled " << sampleSize << " imgs from imgdatasets " << std::endl << " --> with category indexes: " << std::endl;
 	for (auto i : imgs) {
 		std::cout << i << std::endl;
@@ -165,21 +166,20 @@ void UKB::UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSiz
 		cv::cvtColor(cv::imread(imgs[i]), grayImg, cv::COLOR_BGR2GRAY);
 		std::vector<double> query_score;
 		std::vector<int> query_ind;
-		double single_score = 0.0;
-		vladObj.search(grayImg,  query_ind, query_score, 4);
-		
+		vladObj.search(grayImg, query_ind, query_score, 4);
+
 		for (int j = 0; j < 4; j++) {
 			int query_cat = query_ind[j] / int(4);
 			if (query_cat == indexes[i]) {
-				single_score += 1.0;
+				single_scores[i] += 1.0;
 			}
 		}
-		std::cout << "Score for the img: " << imgs[i] << " : =" << single_score << std::endl;
-		score_sum += single_score;
+		score_sum += single_scores[i];
 	}
 	//output the final score
 	std::cout << " The final score: " << score_sum / sampleSize << std::endl;
-
+	//write down the final score
+	UKB::UKResWriter("UKBVLAD_sample_" + std::to_string(sampleSize), single_scores);
 }
 //BBF-kmeans clustering
 //arg[1] is the path to UKB imagesets
@@ -190,22 +190,22 @@ void UKB::UKtrain(int argc, const char* argv[], int numOfTrain) {
 	ukb.UKdataTrain(numOfTrain);
 }
 
-//1th argv: path to the kcenter file
-//2th argv: path to the UKB imagesets
+//1th argv: path to the UKB imagesets
+//2th argv: path to the kcenter file
 void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//sample test categories
 	//find the best 4 for the sampled 50 images
-	std::string testFolder = argv[2];
+	std::string testFolder = argv[1];
 	double score_sum = 0.0;
-
+	std::vector<double> single_scores(sampleSize, 0.0);
 	//read the database images
 	UKBench ukb(testFolder, imgsetSize);
 	std::cout << " -->constructed test dataset with imgsets: " << ukb.imgIndexs.size() << std::endl;
-	std::vector<std::vector<double>> scores(sampleSize, std::vector<double>(ukb.imgIndexs.size()));
-
+	std::vector<std::vector<double>> scores(sampleSize, std::vector<double>(ukb.imgIndexs.size(),0.0));
+	std::vector<std::vector<int>> raw_scores(sampleSize, std::vector<int>(ukb.imgIndexs.size(), 0));
 	//read kcenters
 	cv::FileStorage reader;
-	reader.open(argv[1], cv::FileStorage::READ);
+	reader.open(argv[2], cv::FileStorage::READ);
 	if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; return; }
 
 	//read kcenters
@@ -227,15 +227,14 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	std::cout << std::endl;
 
 	clock_t sTime = clock();
-
+	kernel::robustKernel kernelCompObj(1,kCenters.rows);
 	//read queryimage and store them for furture comparison
-	std::vector<igraph_t> query_graphs;
-	query_graphs.resize(sampleSize);
+	/*std::vector<igraph_t> query_graphs;
+	query_graphs.resize(sampleSize);*/
+	//use the kernel object instead for query graph storage
 
 	//build graphs for query images and store them for comparison
 	for (int i = 0; i < sampleSize; i++) {
-		/*std::vector<std::string> trainPath;
-		trainPath.push_back(imgs[i]);*/
 		cv::Mat descripts1;
 		std::vector<cv::KeyPoint> kpts1;
 
@@ -244,7 +243,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 			continue;
 		}
 		cv::Mat grayImg;
-		cv::cvtColor(cv::imread(imgs[i]), grayImg, cv::COLOR_BGR2GRAY);
+		grayImg=cv::imread(imgs[i],cv::IMREAD_GRAYSCALE);
 
 		try {
 			extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
@@ -254,7 +253,10 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 			break;
 		};
 		std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts1);
-		bool status = graph::build(matches, kpts1, query_graphs[i]);
+		igraph_t i_graph;
+		bool status = graph::build(matches, kpts1, i_graph);
+		kernelCompObj.push_back(i_graph);
+		/*bool status = graph::build(matches, kpts1, query_graphs[i]);*/
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
 
 		//store all query graphs and prepare for comparing with UKBdatasets
@@ -262,25 +264,32 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	std::cout << " -->finished query graphs building start iteration over database imgsets" << std::endl;
 
 	//iterate the whole datasets and records the score
-	omp_set_num_threads(4);
-	#pragma omp parallel
-	{
-		#pragma omp for schedule(dynamic)
-		for (int i = 0; i < ukb.imgPaths.size(); i++) {
-			//iterate the graphs and compute the score
-			for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
-				if (!fs::exists(fs::path(ukb.imgPaths[i][j]))) {
-					std::cout << "vlfeat sift feature detection: Warning: " << ukb.imgPaths[i][j] << " does not exist!" << std::endl;
+	int unit_train = 50;
+	int n_iter = imgsetSize / unit_train, begin, end;
+	for (int i = 0; i < n_iter + 1; i++) {
+		begin = unit_train * i;
+		end = unit_train * (i + 1);
+		if (end > imgsetSize) { end = imgsetSize; }
+		if (begin == end) { break; }
+		std::vector<std::string> imgs;
+		std::vector<int> indexs;
+		std::vector<igraph_t> databaseGraphs;
+		std::cout << "the begin: " << begin << "\t the end: " << end << std::endl;
+		ukb.UKdataExt(begin, end, imgs, indexs);
+		databaseGraphs.resize(imgs.size());
+#pragma omp parallel
+		{
+#pragma omp for schedule(dynamic)
+			for (int j = 0; j < imgs.size(); j++) {
+				if (!fs::exists(fs::path(imgs[j]))) {
+					std::cout << "vlfeat sift feature detection: Warning: " << imgs[j] << " does not exist!" << std::endl;
 					continue;
 				}
 				cv::Mat grayImg;
-				cv::cvtColor(cv::imread(ukb.imgPaths[i][j]), grayImg, cv::COLOR_BGR2GRAY);
+				grayImg = cv::imread(imgs[j], cv::IMREAD_GRAYSCALE);
 
 				cv::Mat descripts2;
 				std::vector<cv::KeyPoint> kpts2;
-				if ((4 * i + j) % 1000 == 0) {
-					std::cout << " --> milestone " << 4 * i + j << " imgs" << std::endl;
-				}
 				try {
 					extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
 				}
@@ -290,40 +299,78 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 				};
 				//build graph and do comparing
 				std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts2);
-				igraph_t mygraph2;
-				bool status = graph::build(matches, kpts2, mygraph2);
+				bool status = graph::build(matches, kpts2, databaseGraphs[j]);
 				if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-				if (int(igraph_cattribute_GAN(&mygraph2, "vertices")) != 0)
-				{
-					/*fileManager::write_graph(mygraph2, fs::path(ukb.imgPaths[i][j]).stem().string(), "graphml");*/
-				}
-				//do comparison with whole query graphs
-				for (int k = 0; k < query_graphs.size(); k++) {
-					//do comparison for the graphs
-					kernel::robustKernel kernelObj(1, kCenters.rows);
-
-					//check if empty graph is tested
-					if (int(igraph_cattribute_GAN(&query_graphs[k], "vertices")) == 0 || int(igraph_cattribute_GAN(&mygraph2, "vertices")) == 0) {
-						scores[k][i * 4 + j] = 0.0;
-						kernelObj.~robustKernel();
-						continue;
-					}
-
-					kernelObj.push_back(query_graphs[k]);
-					kernelObj.push_back(mygraph2);
-					igraph_matrix_t resMat = kernelObj.robustKernelCom();
-					//record score
-					scores[k][i * 4 + j] = MATRIX(resMat, 0, 1);
-					kernelObj.~robustKernel();
-				}
-				igraph_destroy(&mygraph2);
 			}
 		}
+		//compute scores for the query graphs
+		auto scores_block = kernelCompObj.robustKernelCompWithQueryArray(databaseGraphs);
+
+		//assignment to the scores vector
+		for(int m=0;m<sampleSize;m++)
+			for (int n = 0; n < scores_block[m].size(); n++) {
+				scores[m][n + begin * 4] = scores_block[m][n];
+				raw_scores[m][n + begin * 4] = kernelCompObj.raw_scores[m][n];
+			}
 	}
-	//destory query_graphs
-	for (auto& i : query_graphs) {
-		igraph_destroy(&i);
-	}
+	//for (int i = 0; i < ukb.imgPaths.size(); i++) {
+	//	//iterate the graphs and compute the score
+	//	for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
+	//		if (!fs::exists(fs::path(ukb.imgPaths[i][j]))) {
+	//			std::cout << "vlfeat sift feature detection: Warning: " << ukb.imgPaths[i][j] << " does not exist!" << std::endl;
+	//			continue;
+	//		}
+	//		cv::Mat grayImg;
+	//		cv::cvtColor(cv::imread(ukb.imgPaths[i][j]), grayImg, cv::COLOR_BGR2GRAY);
+
+	//		cv::Mat descripts2;
+	//		std::vector<cv::KeyPoint> kpts2;
+	//		if ((4 * i + j) % 1000 == 0) {
+	//			std::cout << " --> milestone " << 4 * i + j << " imgs" << std::endl;
+	//		}
+	//		try {
+	//			extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
+	//		}
+	//		catch (std::invalid_argument& e) {
+	//			std::cout << e.what() << std::endl;
+	//			break;
+	//		};
+	//		//build graph and do comparing
+	//		std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts2);
+	//		igraph_t mygraph2;
+	//		bool status = graph::build(matches, kpts2, mygraph2);
+	//		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+	//		if (int(igraph_cattribute_GAN(&mygraph2, "vertices")) != 0)
+	//		{
+	//			/*fileManager::write_graph(mygraph2, fs::path(ukb.imgPaths[i][j]).stem().string(), "graphml");*/
+	//		}
+	//		//do comparison with whole query graphs
+	//		for (int k = 0; k < query_graphs.size(); k++) {
+	//			//do comparison for the graphs
+	//			kernel::robustKernel kernelObj(1, kCenters.rows);
+
+	//			//check if empty graph is tested
+	//			if (int(igraph_cattribute_GAN(&query_graphs[k], "vertices")) == 0 || int(igraph_cattribute_GAN(&mygraph2, "vertices")) == 0) {
+	//				scores[k][i * 4 + j] = 0.0;
+	//				kernelObj.~robustKernel();
+	//				continue;
+	//			}
+
+	//			kernelObj.push_back(query_graphs[k]);
+	//			kernelObj.push_back(mygraph2);
+	//			igraph_matrix_t resMat = kernelObj.robustKernelCom();
+	//			//record score
+	//			scores[k][i * 4 + j] = MATRIX(resMat, 0, 1);
+	//			/*kernelObj.~robustKernel();*/
+	//		}
+	//		igraph_destroy(&mygraph2);
+	//	}
+	//}
+	//
+	////destory query_graphs
+	//for (auto& i : query_graphs) {
+	//	igraph_destroy(&i);
+	//}
 
 	//return the first 4 highest score categories for the query
 	std::vector<int> indexes_local(ukb.imgIndexs.size());
@@ -331,30 +378,29 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	for (int i = 0; i < sampleSize; i++) {
 		std::vector<int> temp(indexes_local);
 		//cout score function
-		std::cout << "scores for every images: "<<std::endl;
+		std::cout << "scores for every images: " << std::endl;
 		for (int j = 0; j < scores[i].size(); j++) {
 			std::cout << scores[i][j] << " ";
 		}
 
-		std::cout << std::endl << "after index rerank:" << std::endl;
 		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] > scores[i][right]; });
 		//report temp after rerank
-		for (int j = 0; j < temp.size(); j++) {
-			std::cout << temp[j] << " ";
-		}
+		/*std::cout << "\n raw scores: \n";
+		for (int j = 0; j < raw_scores[i].size(); j++) {
+			std::cout << raw_scores[i][j] << " ";
+		}*/
 
 		std::cout << std::endl << std::endl;
 		//get the first 4 numbers
-		double single_score = 0;
 		for (int j = 0; j < 4; j++) {
 			if (ukb.imgIndexs[temp[j]] == indexes[i]) {
-				single_score += 1.0;
+				single_scores[i] += 1.0;
 			}
 		}
-		score_sum += single_score;
-		std::cout << "score for the sampled img " << i << " : " << single_score << std::endl;
+		score_sum += single_scores[i];
 	}
 	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
+	UKB::UKResWriter("UKtest_sample_" + std::to_string(sampleSize), single_scores);
 }
 
 
@@ -497,5 +543,25 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 	}
 }
 
+void UKB::UKResWriter(std::string name, std::vector<double> UKBScores) {
+	std::ofstream CSVOutput;
+	if (!fs::exists("Result")) {
+		fs::create_directories("Result");
+	}
+	if (!UKBScores.empty()) {
+		std::ofstream CSVOutput;
+		int nScores = UKBScores.size();
+		CSVOutput.open(std::string("Result/" + name + "_UKBScores_" + helper::dateTime() + ".csv"), std::fstream::out | std::fstream::app);
+		//input stream for headers
+		CSVOutput << name << "\n";
+
+		//write scores to file
+		for (int i = 0; i < nScores; i++) {
+			CSVOutput << UKBScores[i] << "\n";
+		}
+	}
+	CSVOutput.close();
+	std::cout << " --> Finished writing UKBScore " << name << " :" << UKBScores.size() << std::endl;
+}
 
 

@@ -10,6 +10,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/calib3d.hpp>
 #include <filesystem>
 #include <igraph.h>
 #include <Eigen/Core>
@@ -30,17 +31,22 @@ inline const char* keys =
 "{ path   |                  | Path to the image folder, set mode for different processing ways }";
 
 
+inline void graphExtendTest() {
+
+}
+
 
 
 /*
 	Function: Test graph building function, read kecenter file from arg[1] and build graphs by our algorithm from the provided img (arg[2])
 	arg[1]: path to kcenter file
 	arg[2]: path to the img for graph building
+	arg[3]: path to the second img path for graph building
 */
 inline int graphbuildTest(int argc, const char* argv[]) {
 	//testing the build function with graph
-	if (argc < 3) {
-		std::cout << "Please provides path to the dictionary and image!" << std::endl;
+	if (argc < 4) {
+		std::cout << "Please provides path to the dictionary and two images!" << std::endl;
 	}
 	cv::FileStorage reader;
 	reader.open(argv[1],cv::FileStorage::READ);
@@ -49,22 +55,70 @@ inline int graphbuildTest(int argc, const char* argv[]) {
 	cv::Mat kCenters;
 	reader["kcenters"] >> kCenters;
 
-	//do matching on the test image 
-	std::string testImg(argv[2]);
-	std::vector<std::string> trainPath;
-	trainPath.push_back(testImg);
-	cv::Mat descripts;
-	std::vector<cv::KeyPoint> kpts;
-	extractor::vlimg_descips_compute(trainPath, descripts, kpts);
+	//do detection on the test image 
+	std::string testImg1(argv[2]);
+	cv::Mat img1 = cv::imread(testImg1, cv::IMREAD_GRAYSCALE);
+	cv::Mat descripts1;
+	std::vector<cv::KeyPoint> kpts1;
+	extractor::vlimg_descips_compute_simple(img1, descripts1, kpts1);
+
+	std::string testImg2(argv[3]);
+	cv::Mat img2 = cv::imread(testImg2, cv::IMREAD_GRAYSCALE);
+	cv::Mat descripts2;
+	std::vector<cv::KeyPoint> kpts2;
+	extractor::vlimg_descips_compute_simple(img2, descripts2, kpts2);
+
+	//do matching and choose the best match
+	matcher::kdTree matches(descripts1);
+	auto bestMatches = matches.search(descripts2);
+
+	//records the matching keypoints by the matching result
+	std::vector<cv::Point2f> matchkpts1;
+	std::vector<cv::Point2f> matchkpts2;
+	for (int i = 0; i < bestMatches.size(); i++) {
+		matchkpts1.push_back(kpts1[bestMatches[i].trainIdx].pt);
+		matchkpts2.push_back(kpts2[bestMatches[i].queryIdx].pt);
+	}
+	cv::Mat mask;
+	cv::Mat homo = cv::findHomography(matchkpts1, matchkpts2,mask,cv::RANSAC);
+
+	//print out the homograph mat
+	int maskNum=0;
+	std::cout << "transformation matrix is: " << homo << std::endl;
+
+	//according to the mask to merge points
+	std::vector<cv::Point2f> outliers;
+
+	for (int i = 0; i < mask.rows; i++) {
+		if (!mask.at<uchar>(i)) {
+			//add outliers to the keypoints and descripts
+			outliers.push_back(matchkpts2[i]);
+			descripts1.push_back(descripts2.row(bestMatches[i].queryIdx));
+		}
+	}
+	std::vector<cv::Point2f> outliers_trans(outliers.size());
+
+	//compute the outliers' transformation
+	cv::perspectiveTransform(outliers, outliers_trans, homo);
+
+	std::vector<cv::KeyPoint> kpts2Trans;
+	for (int i = 0; i < mask.rows; i++) {
+		if (!mask.at<uchar>(i)) {
+			//add outliers to the keypoints and descripts
+			kpts2[bestMatches[i].queryIdx].pt= outliers_trans[i];
+			kpts1.push_back(kpts2[bestMatches[i].queryIdx]);
+		}
+	}
 
 	//do kd-tree on the source descriptors
 	matcher::kdTree kdtreeMatcher(kCenters);
-	std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts);
+	std::vector<cv::DMatch> matchesKcenter = kdtreeMatcher.search(descripts1);
+
 	igraph_t mygraph;
-	bool status = graph::build(matches, kpts, mygraph);
+	bool status = graph::build(matchesKcenter, kpts1, mygraph);
 	if (!status) { std::cout << "graph build failed! check your function." << std::endl; return 0; }
 
-	fileManager::write_graph(mygraph, "MatchingTest", "graphml");
+	fileManager::write_graph(mygraph, "GraphbuildRANSAC", "graphml");
 }
 
 /*
@@ -88,27 +142,57 @@ inline void graphKernelTest() {
 	
 	auto sTime = clock();
 	igraph_t testGraph;
-	igraph_empty(&testGraph, 6, IGRAPH_UNDIRECTED);
 	igraph_vector_t e;
-	igraph_real_t edges[] = { 0,1,1,4,1,5,1,2,2,3,3,4,4,5 };
+	igraph_real_t edges[] = { 0,1,0,8,0,9,1,8,1,2,2,3,2,7,3,4,3,6,4,5,4,6,5,6,6,12,7,8,7,11,8,10,9,10,10,11,11,12};
 	igraph_vector_view(&e, edges, sizeof(edges) / sizeof(double));
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
 	igraph_create(&testGraph, &e, 0, IGRAPH_UNDIRECTED);
 
+	//create testgraph2
+	igraph_t testGraph2;
+	igraph_vector_t e2;
+	igraph_real_t edges2[] = { 0,1,0,5,1,2,1,4,3,4,4,6,5,6,6,7 };
+	igraph_vector_view(&e2, edges2, sizeof(edges2) / sizeof(double));
+	igraph_create(&testGraph2, &e2, 0, IGRAPH_UNDIRECTED);
 	//add labels
-	std::vector<int> labstd{ 2,1,3,1,5,1 };
+	std::vector<int> labstd{ 0,2,1,4,0,3,0,3,1,4,0,1,2 };
 	std::vector<double> labstd_vec(labstd.begin(), labstd.end());
-	igraph_vector_t lab_vec;
+	igraph_vector_t lab_vec,lab_vec2;
+	igraph_real_t labs[] = { 0,2,1,4,0,3,0,3,1,4,0,1,2 };
 	
-	igraph_vector_view(&lab_vec, labstd_vec.data(), 6);
-
-	igraph_cattribute_VAN_setv(&testGraph, "label", &lab_vec);
+	igraph_vector_view(&lab_vec, labs, sizeof(labs)/sizeof(double));
+	
+	igraph_real_t labs2[] = { 0,2,1,3,1,4,0,1 };
+	igraph_vector_view(&lab_vec2, labs2, sizeof(labs2) / sizeof(double));
+	SETVANV(&testGraph, "label", &lab_vec);
+	SETVANV(&testGraph2, "label", &lab_vec2);
 
 	//defines the kernel class
-	kernel::robustKernel kernelObj(2, 6);
+	kernel::robustKernel kernelObj(1, 5);
 	kernelObj.push_back(testGraph);
-	kernelObj.push_back(testGraph);
+	std::vector<igraph_t> queryGraph;
+	queryGraph.push_back(testGraph2);
+	auto scores = kernelObj.robustKernelCompWithQueryArray(queryGraph);
+	kernelObj.push_back(testGraph2);
 	auto k_matrix = kernelObj.robustKernelCom();
+	std::cout << "scores :" << scores[0][0]<<std::endl;
 
+	//manually create the inverted_index vectors
+	std::vector<std::unordered_map<int, std::vector<size_t>>> inverts;
+	std::unordered_map<int, std::vector<size_t>> invert1{ {0,std::vector<size_t>{0,4,6,10}},
+		{1,std::vector<size_t>{2,8,11}},{2,std::vector<size_t>{1,12}},{3,std::vector<size_t>{5,7}},{4,std::vector<size_t>{3,9}} };
+	std::unordered_map<int, std::vector<size_t>> invert2{ {0,std::vector<size_t>{0,6}},
+		{1,std::vector<size_t>{2,4,7}},{2,std::vector<size_t>{1}},{3,std::vector<size_t>{3}},{4,std::vector<size_t>{5}} };
+	inverts.push_back(invert1);
+	inverts.push_back(invert2);
+	double values=0.0;
+	for (int i = 0; i < invert1.size();i++) {
+		values+=kernelObj.robustKernelVal(invert1[i], invert2[i], testGraph, testGraph2);
+	}
+
+	std::cout << "kernel values: " << values * (1.0 / (8+19)) * (1.0 / (8+19)) <<std::endl;
+	std::cout << "kernel class computed value: \n";
+	//manully compute the kernel value
 	std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
 
 	int cols = igraph_matrix_ncol(&k_matrix);
@@ -119,9 +203,11 @@ inline void graphKernelTest() {
 			std::cout << MATRIX(k_matrix, i, j)<<"\t";
 		}
 	}
+	//pure kernel value computation
+	
 	
 	//test with old functions
-	sTime = clock();
+	/*sTime = clock();
 	Eigen::MatrixXi E(7,3);
 	Eigen::MatrixXd k_mat;
 	E << 0, 1, 1, 1, 4, 1, 1, 5, 1, 1, 2, 1, 2, 3, 1, 3, 4, 1, 4, 5, 1;
@@ -140,7 +226,7 @@ inline void graphKernelTest() {
 	kernel::robustKernel::wlRobustKernel(Es, labsstd, num_v, num_e, h_max, k_mat);
 
 	std::cout << " -> old funcs spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
-	std::cout << std::endl<<k_mat;
+	std::cout << std::endl<<k_mat;*/
 }
 
 
@@ -191,7 +277,7 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 
 	//use the filename as graph name
 	std::string graphName1 = fs::path(testImg1).stem().string();
-	/*fileManager::write_graph(mygraph1, graphName1, "graphml");*/
+	fileManager::write_graph(mygraph1, graphName1, "graphml");
 
 	//read and build graph for the second test image
 	//do matching on the two test image 
@@ -246,7 +332,7 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
 		std::string graphName2 = fs::path(testImg2).stem().string();
 		if (!writegraph) {
-			/*fileManager::write_graph(mygraph2, graphName2, "graphml");*/
+			fileManager::write_graph(mygraph2, graphName2, "graphml");
 			writegraph = true;
 		}
 		
@@ -255,13 +341,15 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		//	//add to the graph bags and compute the matching score
 		kernel::robustKernel kernelObj(1, kCenters.rows);
 		kernelObj.push_back(mygraph2);
-		kernelObj.push_back(mygraph1);
+		/*kernelObj.push_back(mygraph1);*/
 
+		std::vector<igraph_t>query_test;
+		query_test.push_back(mygraph1);
 		std::cout << " -> igraph spends times" << (clock() - sTime) / double(CLOCKS_PER_SEC) << " secs......" << std::endl;
-		auto resMat = kernelObj.robustKernelCom();
-		int cols = igraph_matrix_ncol(&resMat);
-		int rows = igraph_matrix_nrow(&resMat);
 
+		auto resMat = kernelObj.robustKernelCompWithQueryArray(query_test);
+		/*int cols = igraph_matrix_ncol(&resMat);
+		int rows = igraph_matrix_nrow(&resMat);
 		igraph_destroy(&mygraph2);
 		std::cout << i << "th iteration with random seeds" << std::endl;
 		for (int i = 0; i < cols; i++) {
@@ -269,10 +357,15 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 				for (int j = 0; j < rows; j++) {
 					std::cout << MATRIX(resMat, i, j) << "\t";
 				}
+		}*/
+		for (int i = 0; i < resMat.size(); i++) {
+			std::cout << std::endl;
+			for (int j = 0; j < resMat[i].size(); j++) {
+				std::cout << resMat[i][j] << "\t";
+			}
 		}
 		std::cout << std::endl;		
 	}
-
 }
 
 /*

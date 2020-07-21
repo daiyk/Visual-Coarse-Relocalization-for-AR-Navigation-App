@@ -29,12 +29,14 @@ namespace fileManager {
 	struct ArgList {
 		ArgType tool;
 		ArgType mode;
-		ArgList() :tool(ArgType::DEFAULT), mode(ArgType::DEFAULT) {}
+		bool homo;
+		ArgList() :tool(ArgType::DEFAULT), mode(ArgType::DEFAULT),homo(false) {}
 	};
 
 	//parameters list that will be updated with file input
 	struct parameters {
-		// below will be transformed to json file.
+
+		/******* all parameters below will be read from json file***********/
 		static int octave;       // number of octave used in the sift detection
 		static int noctaveLayer; // scale layers per octave
 		static int firstOctaveInd; // start from 1th octave, which means -1 octave that double the original image size
@@ -58,11 +60,20 @@ namespace fileManager {
 		static int numOfNN; // number of nearest neighbors extracted from kdtree comparison 
 		static int maxNumComp; // maximum number of comparison during kdtree searching
 
-		//vlad setting
-		static int vladCenters;
+		//vlad setting 
+		static int vladCenters; //vlad.h: kmeans center number
+
 		//graph building relevent setting
-		static size_t maxNumDeg;
-		static double radDegLim; //the radius limits for edge connection, limits the edge < radDegLim*pts.scale
+		static size_t maxNumDeg; //graph.h: max num of deg per node allowed
+		static double radDegLim; //graph.h: the radius limits for edge connection, limits the edge < radDegLim*pts.scale
+
+		//testing function relative setting
+		static int sampleSize; //TEST: num of sampled imgs
+		static int imgsetSize; //TEST: total image database size
+
+		//covisMap setting
+		static double PCommonwords; //kernel.h: Minimum percentage of virtual words overlapped with query required to select a given clique for virtual locations
+		static double PCliques; //kernel.h: Minimum percentage of virtual words overlapped between cliques to extend these cliques
 	};
 	ArgList funTestRead(int argc, const char* argv[], std::vector<std::string>& trainFilePaths, std::vector<std::string>& testFilePaths, const char* keys);
 	

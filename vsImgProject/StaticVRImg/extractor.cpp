@@ -28,7 +28,7 @@ void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& 
     omp_set_num_threads(6);
     #pragma omp parallel
     {
-    #pragma omp for schedule(dynamic)
+        #pragma omp for schedule(dynamic)
         for (int i = 0; i < num_imgs; i = i + 1) {
             // int minHessian = 400; // for SURF detector only
             Mat grayImg, purImg;
@@ -46,7 +46,7 @@ void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& 
             detector->detectAndCompute(grayImg, noArray(), kpts, descriptors);
 
             //add to the total statistics, descriptors and keypoints
-    #pragma omp critical
+            #pragma omp critical
             {
                 allDescripts.push_back(descriptors);
                 keypoints.reserve(keypoints.size() + kpts.size());
@@ -73,11 +73,12 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             Mat grayImg,ImgResize;
             Mat grayImgFl;
             Mat1f imgDescrips;
+            std::vector<KeyPoint> imgKpts;
             if (!fs::exists(fs::path(paths[i]))) {
                 cout << "vlfeat sift feature detection: Warning: " << paths[i] << " does not exist!" << endl;
                 continue;
             }
-            cvtColor(cv::imread(paths[i]), grayImg, COLOR_BGR2GRAY);
+            grayImg=cv::imread(paths[i],IMREAD_GRAYSCALE);
 
             //resize image
             cv::resize(grayImg, ImgResize, cv::Size(), params::imgScale, params::imgScale, cv::INTER_AREA);
@@ -86,14 +87,16 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
             int width = grayImg.size().width;
             int height = grayImg.size().height;
 
+            int noctave = params::octave;
             if (params::octave == -1) {
-                int noctave = log2(min(width, width));
+                noctave = log2(min(width, height));
             }
-            auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
-            vl_sift_set_edge_thresh(vl_sift, params::siftEdgeThres);
-            vl_sift_set_peak_thresh(vl_sift, params::siftPeakThres);
+            auto vl_sift = vl_sift_new(width, height, noctave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
+            /*vl_sift_set_edge_thresh(vl_sift, params::siftEdgeThres);
+            vl_sift_set_peak_thresh(vl_sift, params::siftPeakThres);*/
 
-            grayImg.convertTo(grayImgFl, CV_32F, 1.0 / 255.0);
+            /*grayImg.convertTo(grayImgFl, CV_32F, 1.0 / 255.0);*/
+            grayImg.convertTo(grayImgFl, CV_32F);
 
             float* img_ptr = grayImgFl.ptr<float>(0);
 
@@ -124,31 +127,28 @@ void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allD
                 for (int i = 0; i < keyPtsNum; i++) {
                     double rot[4];
                     int nOrit = vl_sift_calc_keypoint_orientations(vl_sift, rot, &keypoints[i]);
-
                     //get the descriptors for each computed orientation in current image
                     for (int j = 0; j < nOrit; j++) {
                         float curr_descriptor[128];
                         vl_sift_calc_keypoint_descriptor(vl_sift, curr_descriptor, &keypoints[i], rot[j]);
-                        Mat descripor(1, 128, CV_32F, curr_descriptor);
-                        imgDescrips.push_back(descripor);
-
-                        KeyPoint kpt(Point2f(keypoints[i].x, keypoints[i].y), keypoints[i].sigma, rot[j] * 180 / CV_PI, 0.f, keypoints[i].o);
-
+                        Mat descript(1, 128, CV_32F, curr_descriptor);
+                        imgDescrips.push_back(descript);
+                        KeyPoint kpt(Point2f(keypoints[i].x, keypoints[i].y), keypoints[i].sigma, rot[j] * 180.0 / CV_PI, 0.f, keypoints[i].o);
+                        
                         //push back keypoints in current keypoints
-                        #pragma omp critical
-                        {
-                            cv_keypoints.push_back(kpt);
-                        }
+                        imgKpts.push_back(kpt);
+                        
                     }
 
                 }
                 result = vl_sift_process_next_octave(vl_sift);
             }
 
-            //push back imge descriptors for current image
+            //push back imge descriptors and keypoints for current image
             #pragma omp critical
             {
                 allDescripts.push_back(imgDescrips);
+                cv_keypoints.insert(cv_keypoints.end(), imgKpts.begin(), imgKpts.end());
             }
             //delete sift
             vl_sift_delete(vl_sift);
@@ -169,14 +169,16 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     int width = ImgResize.size().width;
     int height = ImgResize.size().height;
 
+    int noctave = params::octave;
     if (params::octave == -1) {
-        int noctave = log2(min(width, width));
+        noctave = log2(min(width, height));
     }
-    auto vl_sift = vl_sift_new(width, height, params::octave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
+    auto vl_sift = vl_sift_new(width, height, noctave, params::noctaveLayer, params::firstOctaveInd);//define vl sift processor
+
     vl_sift_set_edge_thresh(vl_sift, params::siftEdgeThres);
     vl_sift_set_peak_thresh(vl_sift, params::siftPeakThres);
 
-    ImgResize.convertTo(ImgResizeF1, CV_32F, 1.0 / 255.0);
+    ImgResize.convertTo(ImgResizeF1, CV_32F);
 
     float* img_ptr = ImgResizeF1.ptr<float>(0);
 
@@ -211,13 +213,13 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
             for (int j = 0; j < nOrit; j++) {
                 float curr_descriptor[128];
                 vl_sift_calc_keypoint_descriptor(vl_sift, curr_descriptor, &keypoints[i], rot[j]);
-                Mat descripor(1, 128, CV_32F, curr_descriptor);
-                Descripts.push_back(descripor);
+                Mat descript(1, 128, CV_32F, curr_descriptor);
+                Descripts.push_back(descript);
 
-                KeyPoint kpt(Point2f(keypoints[i].x, keypoints[i].y), keypoints[i].sigma, rot[j] * 180 / CV_PI, 0.f, keypoints[i].o);
+                KeyPoint kpt(Point2f(keypoints[i].x, keypoints[i].y), keypoints[i].sigma, rot[j] * 180.0 / CV_PI, 0.f, keypoints[i].o);
 
                 //push back keypoints in current keypoints
-                    cv_keypoints.push_back(kpt);
+                cv_keypoints.push_back(kpt);
             }
 
         }

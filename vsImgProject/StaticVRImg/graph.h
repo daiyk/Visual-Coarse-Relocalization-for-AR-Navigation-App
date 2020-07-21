@@ -12,8 +12,11 @@ namespace graph {
 	};
 
 	void graphTest();
-	bool buildFull(igraph_t &graph, int n, bool directed = false);
+	bool buildEmpty(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>& kpts, igraph_t& mygraph);
+	bool buildFull(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>& kpts, igraph_t& mygraph);
 	bool build(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>& kpts, igraph_t& graph);
+	void extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::DMatch>& bestMatches);
+
 }
 
 #endif

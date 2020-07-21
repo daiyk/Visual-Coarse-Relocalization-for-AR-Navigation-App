@@ -176,6 +176,7 @@
     <ClCompile Include="fileop.cpp" />
     <ClCompile Include="FLANN.cpp" />
     <ClCompile Include="graph.cpp" />
+    <ClCompile Include="helper.cpp" />
     <ClCompile Include="kernel.cpp" />
     <ClCompile Include="matcher.cpp" />
     <ClCompile Include="vlad.cpp" />

@@ -11,7 +11,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>D:\thesis\igraph-0.8.2-msvc\Release;D:\thesis\opencv-vs-windows\bin\install\x64\vc16\lib;D:\thesis\vlfeat\bin\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>igraph.lib;opencv_xfeatures2d430.lib;opencv_core430.lib;opencv_flann430.lib;opencv_highgui430.lib;opencv_features2d430.lib;opencv_imgproc430.lib;opencv_imgcodecs430.lib;vl.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>igraph.lib;opencv_xfeatures2d430.lib;opencv_core430.lib;opencv_flann430.lib;opencv_highgui430.lib;opencv_features2d430.lib;opencv_imgproc430.lib;opencv_imgcodecs430.lib;opencv_calib3d430.lib;vl.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
