@@ -50,6 +50,7 @@ namespace fileManager {
 		static double siftEdgeThres;
 		static double siftPeakThres;
 		static double imgScale;
+		static int maxNumOrient; //max number orientation extracted by vlfeat covdet feature detector
 		
 
 		//OpenCV relevent setting

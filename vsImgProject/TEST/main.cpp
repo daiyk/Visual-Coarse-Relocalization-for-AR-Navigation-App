@@ -39,7 +39,9 @@ std::string type2str(int type) {
 int main(int argc, const char* argv[]) {
 	if (argc < 2) {
 		std::cout << "please provides the path to UKBench imagesets" << std::endl;
-		//return 0;
+		/*graphExtendTest();*/
+		covisMapTest();
+		return 0;
 	}
 	fileManager::read_user_set();
 	std::cout << "center number: " << params::centers << std::endl;

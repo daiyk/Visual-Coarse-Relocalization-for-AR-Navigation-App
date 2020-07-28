@@ -20,6 +20,7 @@ void graph::igraph_init::attri_init() {
 }
 
 void graph::graphTest() {
+	igraph_init::attri_init();
 	igraph_integer_t diameter; igraph_t graph;
 	igraph_rng_seed(igraph_rng_default(), 42);
 	igraph_erdos_renyi_game(&graph, IGRAPH_ERDOS_RENYI_GNP, 1000, 5.0 / 1000, IGRAPH_UNDIRECTED, IGRAPH_NO_LOOPS);
@@ -29,6 +30,7 @@ void graph::graphTest() {
 }
 
 bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph) {
+	igraph_init::attri_init();
 	igraph_integer_t n_vertices = matches.size();
 	igraph_bool_t loops = false;
 	if (matches.size() == 0) {
@@ -90,6 +92,7 @@ bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts
 
 //build full graph and return it
 bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph) {
+	igraph_init::attri_init();
 	igraph_integer_t n_vertices = matches.size();
 	igraph_bool_t loops = false;
 	if (matches.size() == 0) {
@@ -156,6 +159,7 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 //if matches is empty, a empty graph is returned
 //mygraph must be a uninit graph
 bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph) {
+	igraph_init::attri_init();
 	//build from matches result and parameter setting
 	if (matches.size() > kpts.size()) {
 		std::cout << "graph.buld: matches size cannot larger than the keypoint size!" << std::endl;
@@ -279,14 +283,27 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 //bestMatches should be the extendGraph as query to the sourceGraph
 //best matches should be generated from the compressed descriptors matching!
 //new graph stores in the source graph
-void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMatch> &bestMatches)
+bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMatch> &bestMatches)
 {
+	if (bestMatches.size() < 5) {
+		std::cout << "graph::extend: Error: RANSAC transform need at least 5 points.";
+		return false;
+	}
+	
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
 	//separate the inliners and outliers
 	size_t n_srcVertices = GAN(&sourceGraph, "n_vertices");
 	size_t n_exdVertices = GAN(&extendGraph, "n_vertices");
 
 	//extract keypoints from the exdgraph
 	igraph_vector_t srcPosx, srcPosy, exdPosx, exdPosy,exdScale,exdLabel;
+	igraph_vector_init(&srcPosx, 0);
+	igraph_vector_init(&srcPosy, 0);
+	igraph_vector_init(&exdPosy, 0);
+	igraph_vector_init(&exdPosx, 0);
+	igraph_vector_init(&exdScale, 0);
+	igraph_vector_init(&exdLabel, 0);
+
 	VANV(&sourceGraph, "posx", &srcPosx);
 	VANV(&sourceGraph, "posy", &srcPosy);
 
@@ -311,7 +328,7 @@ void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 	}
 	//compute the homography matrix
 	cv::Mat mask;
-	auto homo = findHomography(exdKpts, srcKpts, mask, cv::RANSAC);
+	cv::Mat homo = findHomography(exdKpts, srcKpts, mask, cv::RANSAC);
 
 	//transform the graph points and rebuild the graph
 
@@ -331,7 +348,7 @@ void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 		//if not inside inliers then add to the container
 		if (inliers.find(i) == inliers.end()) {
 			outliers_idx.push_back(i);
-			mergeKpts.push_back(KeyPoint(transfKpts[i], VECTOR(exdScale)[i], 0.0, 0, VECTOR(exdLabel)[i]));
+			mergeKpts.push_back(KeyPoint(transfKpts[i], VECTOR(exdScale)[i], -1.0, 0,0, VECTOR(exdLabel)[i]));
 		}
 	}
 	//default the new vertices are new continuous larger number
@@ -348,7 +365,7 @@ void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 			igraph_integer_t eid;
 			igraph_get_eid(&extendGraph, &eid, i, j, IGRAPH_UNDIRECTED, false);
 			if (eid == -1) {
-				continue;
+				continue; //no edge found on (i,j) just skip
 			}
 			//if both of them are in inliers then do edge weights merging
 			size_t map_i, map_j;
@@ -371,7 +388,7 @@ void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 			igraph_integer_t srceid;
 			igraph_get_eid(&sourceGraph, &srceid, map_i, map_j, IGRAPH_UNDIRECTED, false);
 			if (srceid != -1) {
-				//merge weight
+				//merge weight with original graph this is only applied for map_i,map_j both inliers
 				SETEAN(&sourceGraph, "weight", srceid, EAN(&sourceGraph, "weight", srceid) + weight);
 			}
 			else
@@ -391,6 +408,8 @@ void graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 		SETVAN(&sourceGraph, "scale", outliers.at(outliers_idx[i]), mergeKpts[i].size);
 		SETVAN(&sourceGraph, "label", outliers.at(outliers_idx[i]), mergeKpts[i].class_id);
 	}
+	//set new number of vertics
+	SETGAN(&sourceGraph, "n_vertices", igraph_vcount(&sourceGraph));
 	
-	
+	return true;
 }

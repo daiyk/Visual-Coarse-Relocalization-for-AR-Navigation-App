@@ -27,8 +27,9 @@ double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
 double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
 double fileManager::parameters::imgScale = 1.0; //image scaling during detection and drawing
+int fileManager::parameters::maxNumOrient = 4; //max number orientation extracted by vlfeat covdet feature detector, default 4 for SIFT
 
-//OpenCV relevent setting
+                                               //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
 float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
 
@@ -338,8 +339,9 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::vladCenters = jsonlist.value("vladCenters", fileManager::parameters::vladCenters);
     fileManager::parameters::sampleSize = jsonlist.value("sampleSize", fileManager::parameters::sampleSize);
     fileManager::parameters::imgsetSize = jsonlist.value("imgsetSize", fileManager::parameters::imgsetSize);
-    fileManager::parameters::PCliques = jsonlist.value("imgsetSize", fileManager::parameters::PCliques);
-    fileManager::parameters::PCommonwords = jsonlist.value("imgsetSize", fileManager::parameters::PCommonwords);
+    fileManager::parameters::PCliques = jsonlist.value("PCliques", fileManager::parameters::PCliques);
+    fileManager::parameters::PCommonwords = jsonlist.value("PCommonwords", fileManager::parameters::PCommonwords);
+    fileManager::parameters::maxNumOrient = jsonlist.value("maxNumOrient", fileManager::parameters::maxNumOrient);
 }
 
 /*

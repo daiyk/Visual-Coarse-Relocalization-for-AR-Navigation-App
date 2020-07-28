@@ -18,8 +18,10 @@ namespace kernel {
 		//add labels in mygraph to inverted tree and covisibility map
 		void process(igraph_t& mygraph);
 		//retrieve the relevant graph ids and return it
-		std::vector < std::vector<int>> retrieve(igraph_t& queryGraph);
-
+		void processSampleLoc();
+		std::vector <std::vector<int>> retrieve(igraph_t& queryGraph);
+		void printMap();
+		~covisMap() { igraph_sparsemat_destroy(&this->map); }
 	private:
 		std::vector<std::vector<int>> inverted_tree;
 		igraph_sparsemat_t map;

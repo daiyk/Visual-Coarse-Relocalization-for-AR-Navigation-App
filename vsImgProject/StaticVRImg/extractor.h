@@ -14,6 +14,9 @@ namespace extractor {
 	//simple single image descriptor computing
 	//img1: must be grayImg
 	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints);
+
+	//covdet implementation of SIFT
+	void covdetSIFT(cv::Mat& img);
 }
 #endif // ! _DESCRIP_EXT_H
 

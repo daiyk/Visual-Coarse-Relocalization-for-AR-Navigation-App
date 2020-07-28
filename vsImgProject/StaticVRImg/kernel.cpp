@@ -429,14 +429,11 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
 void kernel::covisMap::process(igraph_t& mygraph) {
     //process the graph, build covismap
     igraph_vector_t labs;
+    igraph_vector_init(&labs, 0);
     VANV(&mygraph, "label", &labs);
-
     //special for the first graph
-    if (!igraph_sparsemat_ncol(&this->map) == 1) {
-        igraph_sparsemat_add_cols(&this->map,1);
-    }
     int ncols = igraph_sparsemat_ncol(&this->map);
-
+    std::cout << "number of cols: " << ncols << std::endl;
     std::vector<bool> unique_labs(this->kCenters,true);
     //mark label to the corresponding position
     //here we ensure the unique of labels, or we only records whether a label is shown but not its frequency
@@ -450,13 +447,14 @@ void kernel::covisMap::process(igraph_t& mygraph) {
         }
     }
     igraph_vector_destroy(&labs);
-
+    igraph_sparsemat_add_cols(&this->map, 1);
 }
 
 //retrieve by landmark's labels
 std::vector<std::vector<int>> kernel::covisMap::retrieve(igraph_t& queryGraph) {
     //extract labels from queryGraph and search among the inverted tree and labels
     igraph_vector_t labs;
+    igraph_vector_init(&labs, 0);
     VANV(&queryGraph, "label", &labs);
 
     //iterate through the labs and retrieve the corresponding graphs/cliques
@@ -493,7 +491,10 @@ std::vector<std::vector<int>> kernel::covisMap::retrieve(igraph_t& queryGraph) {
     igraph_sparsemat_transpose(&M_,&M_t,1);
     igraph_sparsemat_multiply(&M_t, &M_, &M_tM_);
     igraph_matrix_t M_cols_sum,M_tM_matrix;
+    igraph_matrix_init(&M_cols_sum, 0, 0);
+    igraph_matrix_init(&M_tM_matrix, 0, 0);
     igraph_vector_t cols_sum;
+    igraph_vector_init(&cols_sum, 0);
     igraph_sparsemat_as_matrix(&M_cols_sum,&M_);
     igraph_sparsemat_as_matrix(&M_tM_matrix, &M_tM_);
     igraph_matrix_colsum(&M_cols_sum,&cols_sum);
@@ -505,11 +506,16 @@ std::vector<std::vector<int>> kernel::covisMap::retrieve(igraph_t& queryGraph) {
     for (int i = 0; i < igraph_vector_size(&cols_sum) - 1; i++) {
         single_clique.push_back(selected_graphs[i]);
         if (double(MATRIX(M_tM_matrix, i, i + 1) / VECTOR(cols_sum)[i])>params::PCliques) {
+            if (i == igraph_vector_size(&cols_sum) - 2)
+            {
+                single_clique.push_back(selected_graphs[i+1]);
+                cliques.push_back(single_clique);
+            }
             continue;
         }
-        else
-        {
+        else {
             cliques.push_back(single_clique);
+            single_clique.clear();
         }
     }
     igraph_vector_destroy(&labs);
@@ -517,13 +523,28 @@ std::vector<std::vector<int>> kernel::covisMap::retrieve(igraph_t& queryGraph) {
     igraph_sparsemat_destroy(&M);
     igraph_sparsemat_destroy(&M_tM_);
     igraph_sparsemat_destroy(&M_t);
-    igraph_sparsemat_destroy(&M);
     igraph_matrix_destroy(&M_cols_sum);
     igraph_matrix_destroy(&M_tM_matrix);
     return cliques;
 }
 
+void kernel::covisMap::printMap() {
+    igraph_matrix_t res;
+    igraph_sparsemat_t compressed;
+    igraph_sparsemat_compress(&this->map, &compressed);
+    igraph_matrix_init(&res, 0, 0);
+    igraph_sparsemat_as_matrix(&res, &compressed);
+    for (int i = 0; i < igraph_matrix_nrow(&res); i++) {
+        for (int j = 0; j < igraph_matrix_ncol(&res); j++) {
+            std::cout << MATRIX(res, i, j) << " ";
+        }
+        std::cout << std::endl;
+    }
+}
 
+void kernel::covisMap::processSampleLoc() {
+
+}
 //double kernel::robustKernel::robustKernelValTest(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j, double edge_norm) {
 //
 //    std::vector<double>kernelVals;

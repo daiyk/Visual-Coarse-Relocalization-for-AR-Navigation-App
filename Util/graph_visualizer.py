@@ -16,7 +16,7 @@ parser.add_argument("-need_img", required=False,default=False, type=bool, help="
 
 
 
-def read_graph(path,scale,plot_full_set=False,need_img=True):
+def read_graph(path,scale,plot_full_set=False,need_img=False):
     dir_path = Path.cwd()
     parent_path = Path(dir_path)
     parent_path = parent_path.parent
@@ -56,6 +56,7 @@ def read_graph(path,scale,plot_full_set=False,need_img=True):
 
         totalEdges = [e for e in G.edges()]
         labs = nx.get_node_attributes(G,"label")
+        weight = nx.get_edge_attributes(G,"weight")
         labs_edges={}
         # # start drawing the graph, first record the pos
         for (k1,v1), (k2,v2) in zip(posx.items(),posy.items()):
@@ -74,7 +75,7 @@ def read_graph(path,scale,plot_full_set=False,need_img=True):
         G_edges.add_edges_from(G.edges)
         mpimg
         
-        plt.figure(i)
+        # plt.figure(i)
         fig, ax = plt.subplots()
 
         #resize img
@@ -82,7 +83,8 @@ def read_graph(path,scale,plot_full_set=False,need_img=True):
             print("{}th edge number: {};".format(i,G_edges.number_of_edges()))
             if(need_img):
                 plt.imshow(img)
-            plt.title(path[i])
+            p = Path(path[i])    
+            plt.title(p.stem)
             nx.draw_networkx_nodes(G,pos,node_color=list(labs.values()),ax=ax)
             nx.draw_networkx_edges(G,pos)
             nx.draw_networkx_labels(G,pos,labels=labs)
@@ -91,10 +93,12 @@ def read_graph(path,scale,plot_full_set=False,need_img=True):
             print("{}th edge number: {}; ".format(i,G_edges.number_of_edges()))
             if(need_img):
                 plt.imshow(img)
-            plt.title(path[i])
+            p = Path(path[i])    
+            plt.title(p.stem)
             nx.draw_networkx_nodes(G_edges,pos_edges,node_color=list(labs_edges.values()),ax=ax)
             nx.draw_networkx_edges(G_edges,pos_edges)
             nx.draw_networkx_labels(G_edges,pos_edges,labels=labs_edges)
+            nx.draw_networkx_edge_labels(G_edges,pos_edges,edge_labels=weight)
             ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
     plt.show()
 

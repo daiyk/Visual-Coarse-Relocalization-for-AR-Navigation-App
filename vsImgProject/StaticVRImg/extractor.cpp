@@ -1,9 +1,7 @@
 #include <opencv2/core.hpp>
 #include <iostream>
-#ifdef HAVE_OPENCV_XFEATURES2D
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/xfeatures2d.hpp>
 #include <filesystem>
 #include <omp.h>
 #include "extractor.h"
@@ -11,13 +9,14 @@
 extern "C" {
     #include "vl/sift.h"
     #include "vl/generic.h"
+    #include "vl/covdet.h"
 }
-
 using namespace std;
 using namespace cv;
 namespace fs = std::filesystem;
 using params = fileManager::parameters;
-
+#ifdef HAVE_OPENCV_XFEATURES2D
+#include <opencv2/xfeatures2d.hpp>
 void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
 {
     clock_t sTime = clock();
@@ -56,7 +55,9 @@ void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& 
     }
     cout << "   -> openCV SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;
 }
-
+#else
+#error "Require OpenCV xfeature2d contrib_modules, please refer to opencv_contrib: https://github.com/opencv/opencv_contrib"
+#endif
 void extractor::vlimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& cv_keypoints)
 {
     size_t num_imgs = paths.size();
@@ -231,9 +232,78 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;*/
 }
 
+void extractor::covdetSIFT(cv::Mat &img) {
+    size_t numRows = img.rows;
+    size_t numCols = img.cols;
+    
+    //set covdet detector to different of gaussian
+    VlCovDet* covdet = vl_covdet_new(VlCovDetMethod::VL_COVDET_METHOD_DOG);
 
-#else
+    // set various parameters
+    vl_covdet_set_first_octave(covdet, -1); //covdet default = -1
+    // vl_covdet_set_num_octaves(covdet, -1); //covdet default = -1
+    // vl_covdet_set_max_num_orientations(covdet, 4);//covdet default = 4
+    // vl_covdet_set_non_extrema_suppression_threshold(covdet, 0.5); //covdet default = 0.5
+    vl_covdet_set_octave_resolution(covdet, params::noctaveLayer); //
+    vl_covdet_set_peak_threshold(covdet, params::siftPeakThres); //covdet default = 0.01
+    vl_covdet_set_edge_threshold(covdet, params::siftEdgeThres); //covdet default = 10.0
 
-#error "Require OpenCV xfeature2d contrib_modules, please refer to opencv_contrib: https://github.com/opencv/opencv_contrib"
+    //process image
+    cv::Mat imgFloat;
+    img.convertTo(imgFloat, CV_32F);
+    vl_covdet_put_image(covdet,imgFloat.ptr<float>(0) , numRows, numCols);
 
-#endif
+    //do detection
+    vl_covdet_detect(covdet);
+
+    //drop marginal features use recommended value 1
+    vl_covdet_drop_features_outside(covdet, 1);
+
+    // compute the affine shape of the features, drop feature that cannot produce reliable affine shape
+    vl_covdet_extract_affine_shape(covdet);
+
+    // compute the orientation of the features, maximum maxNumOrient orientation are created and feature are duplicated
+    vl_covdet_extract_orientations(covdet);
+
+    //get feature frame back
+    vl_size numFeatures = vl_covdet_get_num_features(covdet);
+    VlCovDetFeature const* feature = (VlCovDetFeature const* )vl_covdet_get_features(covdet);
+
+    //process the features sift process the patch around 16*16 windows around the feature
+    VlSiftFilt* sift = vl_sift_new(16, 16, 1, 3, 0);
+
+    //use recommended setting
+    vl_size dim = 128;
+    vl_size patchResolution = 15;
+    double patchRelativeExtent = 7.5;
+    double patchRelativeSmoothing = 1;
+    vl_size w = 2 * patchResolution + 1;
+    double patchStep = patchRelativeExtent / patchResolution;
+    //construct SIFT features
+    //we store the keypoints and descriptors in form of opencv
+    std::vector<KeyPoint> kpts;
+    cv::Mat descrips(numFeatures,dim,CV_32F);
+    for (int i = 0; i < numFeatures; i++) {
+        //extract patches from frames
+        std::vector<float> patch(w * w);
+        std::vector<float> grads(2 * w * w);
+        vl_covdet_extract_patch_for_frame(covdet, patch.data(), 
+                                          patchResolution, patchRelativeExtent, 
+                                          patchRelativeSmoothing, feature[i].frame);
+        //computes and stores amplitude and angle gradient in the same grads vector
+        vl_imgradient_polar_f(&grads[0], &grads[1], 2, 2 * w, patch.data(), w, w, w);
+
+        vl_sift_calc_raw_descriptor(sift, grads.data(),
+            descrips.ptr<float>(i), (int)w, (int)w,
+            (double)(w - 1) / 2, (double)(w - 1) / 2,
+            (double)patchRelativeExtent / (3.0 * (4 + 1) / 2) / patchStep,
+            VL_PI / 2); // kpt scale: because img shrink for 1 / patchStep, and smoothing is 1.0; Besides, keypoint should at the center of extracted patch
+        //quote: In order to be equivalent to a standard SIFT descriptor the image gradient must be computed at a smoothing level equal to the scale of the keypoint
+        
+    }
+    
+
+}
+
+
+

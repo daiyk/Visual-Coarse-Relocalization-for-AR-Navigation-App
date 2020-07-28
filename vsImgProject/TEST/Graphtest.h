@@ -30,9 +30,206 @@ inline const char* keys =
 "{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
 "{ path   |                  | Path to the image folder, set mode for different processing ways }";
 
+inline void covisMapTest() {
+	//define testing graphs
+	auto sTime = clock();
+	igraph_t testGraph;
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	igraph_real_t posx1[] = { 1.0,1.0,3.0,5.0,5.0,7.0,7,7 };
+	igraph_real_t posy1[] = { 1.0,3.0,2.0,1.0,3.0,2.0,3,1 };
+	igraph_real_t edges[] = { 0,1,0,2,1,2,2,3,2,4,3,4,3,5,4,5,4,6,3,7 };
+	igraph_real_t label1[] = { 0,1,2,3,4,5,6,7 };
+	igraph_real_t scale1[] = { 1,1,1,1,1,1,1,1 };
+	igraph_real_t edgeW1[] = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1,1 };
+	igraph_vector_t e1, px1, py1, lab1, scl1, ew1;
 
+	igraph_vector_view(&e1, edges, sizeof(edges) / sizeof(double));
+	igraph_vector_view(&px1, posx1, sizeof(posx1) / sizeof(double));
+	igraph_vector_view(&py1, posy1, sizeof(posy1) / sizeof(double));
+	igraph_vector_view(&lab1, label1, sizeof(label1) / sizeof(double));
+	igraph_vector_view(&scl1, scale1, sizeof(scale1) / sizeof(double));
+	igraph_vector_view(&ew1, edgeW1, sizeof(edgeW1) / sizeof(double));
+	igraph_create(&testGraph, &e1, 0, IGRAPH_UNDIRECTED);
+	SETGAS(&testGraph, "name", "testGraph1");
+	SETGAN(&testGraph, "n_vertices", sizeof(scale1) / sizeof(double));
+	SETEANV(&testGraph, "weight", &ew1);
+	SETVANV(&testGraph, "label", &lab1);
+	SETVANV(&testGraph, "posx", &px1);
+	SETVANV(&testGraph, "posy", &py1);
+	SETVANV(&testGraph, "scale", &scl1);
+
+	//create testgraph2
+	igraph_t testGraph2;
+	igraph_vector_t e2, px2, py2, lab2, scl2, ew2;
+	igraph_real_t posx2[] = { 3,5,4,3,5,4,3,5 };
+	igraph_real_t posy2[] = { 0,0,2,3,3,4,2,2 };
+	igraph_real_t edges2[] = { 0,1,0,2,1,2,2,3,2,4,3,4,3,5,4,5,0,6,1,7 };
+	igraph_real_t label2[] = { 0,1,2,8,8,8,6,7 };
+	igraph_real_t scale2[] = { 1,1,1,1,1,1,1,1 };
+	igraph_real_t edgeW2[] = { 1,1,1,1,1,1,1,1,1,1 };
+
+	igraph_vector_view(&e2, edges2, sizeof(edges2) / sizeof(double));
+	igraph_vector_view(&px2, posx2, sizeof(posx2) / sizeof(double));
+	igraph_vector_view(&py2, posy2, sizeof(posy2) / sizeof(double));
+	igraph_vector_view(&lab2, label2, sizeof(label2) / sizeof(double));
+	igraph_vector_view(&scl2, scale2, sizeof(scale2) / sizeof(double));
+	igraph_vector_view(&ew2, edgeW2, sizeof(edgeW2) / sizeof(double));
+	igraph_create(&testGraph2, &e2, 0, IGRAPH_UNDIRECTED);
+	SETGAS(&testGraph2, "name", "testGraph2");
+	SETGAN(&testGraph2, "n_vertices", sizeof(scale2) / sizeof(double));
+	SETEANV(&testGraph2, "weight", &ew2);
+	SETVANV(&testGraph2, "label", &lab2);
+	SETVANV(&testGraph2, "posx", &px2);
+	SETVANV(&testGraph2, "posy", &py2);
+	SETVANV(&testGraph2, "scale", &scl2);
+	
+	//testGraph3
+	igraph_t testGraph3;
+	igraph_vector_t e3, px3, py3, lab3, scl3, ew3;
+	igraph_real_t posx3[] = { 1,1,1,3,3,5,7,7,9,9,9 };
+	igraph_real_t posy3[] = { 1,2,3,3,1,2,1,3,2,3,1 };
+	igraph_real_t edges3[] = { 0,1,0,4,1,2,2,3,3,4,3,5,4,5,5,6,5,7,6,7,6,8,6,10,7,8,7,9};
+	igraph_real_t label3[] = { 9,9,9,1,0,2,3,4,5,6,7};
+	igraph_real_t scale3[] = { 1,1,1,1,1,1,1,1,1,1,1 };
+	igraph_real_t edgeW3[] = { 1,1,1,1,1,1,1,1,1,1,1,1,1,1 };
+
+	igraph_vector_view(&e3, edges3, sizeof(edges3) / sizeof(double));
+	igraph_vector_view(&px3, posx3, sizeof(posx3) / sizeof(double));
+	igraph_vector_view(&py3, posy3, sizeof(posy3) / sizeof(double));
+	igraph_vector_view(&lab3, label3, sizeof(label3) / sizeof(double));
+	igraph_vector_view(&scl3, scale3, sizeof(scale3) / sizeof(double));
+	igraph_vector_view(&ew3, edgeW3, sizeof(edgeW3) / sizeof(double));
+	igraph_create(&testGraph3, &e3, 0, IGRAPH_UNDIRECTED);
+	SETGAS(&testGraph3, "name", "testGraph3");
+	SETGAN(&testGraph3, "n_vertices", sizeof(scale3) / sizeof(double));
+	SETEANV(&testGraph3, "weight", &ew3);
+	SETVANV(&testGraph3, "label", &lab3);
+	SETVANV(&testGraph3, "posx", &px3);
+	SETVANV(&testGraph3, "posy", &py3);
+	SETVANV(&testGraph3, "scale", &scl3);
+
+	//test the graph extension function
+	std::vector<cv::DMatch> bestMatches12,bestMatches23,bestMatches13;
+	bestMatches12.push_back(cv::DMatch(0, 4, 0));
+	bestMatches12.push_back(cv::DMatch(1, 3, 0));
+	bestMatches12.push_back(cv::DMatch(2, 5, 0));
+	bestMatches12.push_back(cv::DMatch(6, 6, 0));
+	bestMatches12.push_back(cv::DMatch(7, 7, 0));
+
+	bestMatches13.push_back(cv::DMatch(3, 1, 0));
+	bestMatches13.push_back(cv::DMatch(4, 0, 0));
+	bestMatches13.push_back(cv::DMatch(5, 2, 0));
+	bestMatches13.push_back(cv::DMatch(6, 3, 0));
+	bestMatches13.push_back(cv::DMatch(7, 4, 0));
+	bestMatches13.push_back(cv::DMatch(8, 5, 0));
+	bestMatches13.push_back(cv::DMatch(9, 6, 0));
+	bestMatches13.push_back(cv::DMatch(10, 7, 0));
+
+	bestMatches23.push_back(cv::DMatch(6, 1, 0));
+	bestMatches23.push_back(cv::DMatch(7, 0, 0));
+	bestMatches23.push_back(cv::DMatch(8, 2, 0));
+	bestMatches23.push_back(cv::DMatch(9, 6, 0));
+	bestMatches23.push_back(cv::DMatch(10, 7, 0));
+
+	fileManager::write_graph(testGraph, "covisTestG1", "graphml");
+	fileManager::write_graph(testGraph2, "covisTestG2", "graphml");
+	fileManager::write_graph(testGraph3, "covisTestG3", "graphml");
+
+	std::vector<igraph_t*> graphs;
+	kernel::covisMap covis(10);
+	covis.process(testGraph);
+	graphs.push_back(&testGraph);
+	covis.process(testGraph2);
+	graphs.push_back(&testGraph2);
+	covis.process(testGraph3);
+	graphs.push_back(&testGraph3);
+	/*covis.printMap();*/
+
+	auto rel = covis.retrieve(testGraph);
+	for (int i = 0; i < rel.size(); i++) {
+		for (int j = 0; j < rel[i].size(); j++) {
+			std::cout << j << " ";
+		}
+		std::cout << "\n";
+	}
+
+	//build virtual locations, single graph location is neglected
+	igraph_vector_t G123posx, G123posy;
+	igraph_vector_init(&G123posx, 0);
+	igraph_vector_init(&G123posy, 0);
+	graph::extend(testGraph, testGraph2, bestMatches12);
+	fileManager::write_graph(testGraph, "covisTestG12", "graphml");
+	graph::extend(testGraph, testGraph3,bestMatches13);
+	fileManager::write_graph(testGraph, "covisTestG123", "graphml");
+	graph::extend(testGraph2, testGraph3, bestMatches23);
+	fileManager::write_graph(testGraph2, "covisTestG23", "graphml");
+}
 inline void graphExtendTest() {
+	//define testing graphs
+	auto sTime = clock();
+	igraph_t testGraph;
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	igraph_real_t posx1[] = {1.0,1.0,3.0,5.0,5.0,7.0,7,7};
+	igraph_real_t posy1[] = { 1.0,3.0,2.0,1.0,3.0,2.0,3,1 };
+	igraph_real_t edges[] = { 0,1,0,2,1,2,2,3,2,4,3,4,3,5,4,5,4,6,3,7 };
+	igraph_real_t label1[] = { 0,1,2,3,4,5,6,7 };
+	igraph_real_t scale1[] = { 1,1,1,1,1,1,1,1 };
+	igraph_real_t edgeW1[] = { 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1,1 };
+	igraph_vector_t e1, px1, py1, lab1,scl1,ew1;
+	
+	igraph_vector_view(&e1, edges, sizeof(edges) / sizeof(double));
+	igraph_vector_view(&px1, posx1, sizeof(posx1) / sizeof(double));
+	igraph_vector_view(&py1, posy1, sizeof(posy1) / sizeof(double));
+	igraph_vector_view(&lab1, label1, sizeof(label1) / sizeof(double));
+	igraph_vector_view(&scl1, scale1, sizeof(scale1) / sizeof(double));
+	igraph_vector_view(&ew1, edgeW1, sizeof(edgeW1) / sizeof(double));
+	igraph_create(&testGraph, &e1, 0, IGRAPH_UNDIRECTED);
+	SETGAS(&testGraph, "name", "testGraph1");
+	SETGAN(&testGraph, "n_vertices", sizeof(scale1) / sizeof(double));
+	SETEANV(&testGraph, "weight", &ew1);
+	SETVANV(&testGraph, "label", &lab1);
+	SETVANV(&testGraph, "posx", &px1);
+	SETVANV(&testGraph, "posy", &py1);
+	SETVANV(&testGraph, "scale", &scl1);
+	
+	//create testgraph2
+	igraph_t testGraph2;
+	igraph_vector_t e2, px2, py2, lab2, scl2, ew2;
+	igraph_real_t posx2[] = {3,5,4,3,5,4,3,5};
+	igraph_real_t posy2[] = { 0,0,2,3,3,4,2,2 };
+	igraph_real_t edges2[] = { 0,1,0,2,1,2,2,3,2,4,3,4,3,5,4,5,0,6,1,7 };
+	igraph_real_t label2[] = { 0,1,2,3,4,5,6,7 };
+	igraph_real_t scale2[] = { 1,1,1,1,1,1,1,1 };
+	igraph_real_t edgeW2[] = { 1,1,1,1,1,1,1,1,1,1 };
 
+	igraph_vector_view(&e2, edges2, sizeof(edges2) / sizeof(double));
+	igraph_vector_view(&px2, posx2, sizeof(posx2) / sizeof(double));
+	igraph_vector_view(&py2, posy2, sizeof(posy2) / sizeof(double));
+	igraph_vector_view(&lab2, label2, sizeof(label2) / sizeof(double));
+	igraph_vector_view(&scl2, scale2, sizeof(scale2) / sizeof(double));
+	igraph_vector_view(&ew2, edgeW2, sizeof(edgeW2) / sizeof(double));
+	igraph_create(&testGraph2, &e2, 0, IGRAPH_UNDIRECTED);
+	SETGAS(&testGraph2, "name", "testGraph2");
+	SETGAN(&testGraph2, "n_vertices", sizeof(scale2) / sizeof(double));
+	SETEANV(&testGraph2, "weight", &ew2);
+	SETVANV(&testGraph2, "label", &lab2);
+	SETVANV(&testGraph2, "posx", &px2);
+	SETVANV(&testGraph2, "posy", &py2);
+	SETVANV(&testGraph2, "scale", &scl2);
+	
+	//test the graph extension function
+	std::vector<cv::DMatch> bestMatches;
+	bestMatches.push_back(cv::DMatch(0,4,0));
+	bestMatches.push_back(cv::DMatch(1, 3, 0));
+	bestMatches.push_back(cv::DMatch(2, 5, 0));
+	bestMatches.push_back(cv::DMatch(6, 6, 0));
+	bestMatches.push_back(cv::DMatch(7, 7, 0));
+	fileManager::write_graph(testGraph, "testG1", "graphml");
+	fileManager::write_graph(testGraph2, "testG2", "graphml");
+	graph::extend(testGraph, testGraph2, bestMatches);
+
+	//write the testGraph
+	fileManager::write_graph(testGraph, "extendtest", "graphml");
 }
 
 
@@ -172,6 +369,7 @@ inline void graphKernelTest() {
 	kernelObj.push_back(testGraph);
 	std::vector<igraph_t> queryGraph;
 	queryGraph.push_back(testGraph2);
+
 	auto scores = kernelObj.robustKernelCompWithQueryArray(queryGraph);
 	kernelObj.push_back(testGraph2);
 	auto k_matrix = kernelObj.robustKernelCom();
