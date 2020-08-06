@@ -1,11 +1,15 @@
+
 #include <opencv2/core.hpp>
-#include <iostream>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <iostream>
+#include <set>
 #include <filesystem>
 #include <omp.h>
 #include "extractor.h"
 #include "fileManager.h"
+
+
 extern "C" {
     #include "vl/sift.h"
     #include "vl/generic.h"
@@ -17,6 +21,61 @@ namespace fs = std::filesystem;
 using params = fileManager::parameters;
 #ifdef HAVE_OPENCV_XFEATURES2D
 #include <opencv2/xfeatures2d.hpp>
+
+//customized feature extract function set MaxNumScale=1
+void flip_descriptor(cv::Mat& dst, float* src) {
+    int const BO = 8; /* number of orientation bins */
+    int const BP = 4; /* number of spatial bins     */
+    int i, j, t;
+
+    for (j = 0; j < BP; ++j) {
+        int jp = BP - 1 - j;
+        for (i = 0; i < BP; ++i) {
+            int o = BO * i + BP * BO * j;
+            int op = BO * i + BP * BO * jp;
+            dst.at<float>(0,op) = src[o];
+            for (t = 1; t < BO; ++t) {
+                dst.at<float>(0,BO - t + op) = src[t + o];
+            }
+        }
+    }
+}
+void vl_feature_scale_extraction(VlCovDet* self) {
+    vl_index i, j;
+    vl_bool dropFeaturesWithoutScale = VL_TRUE;
+    vl_size numFeatures = vl_covdet_get_num_features(self);
+    VlCovDetFeature* features = (VlCovDetFeature * )vl_covdet_get_features(self);
+
+    for (i = 0; i < (signed)numFeatures; ++i) {
+        vl_size numScales;
+        VlCovDetFeature feature = features[i];
+        VlCovDetFeatureLaplacianScale const* scales =
+            vl_covdet_extract_laplacian_scales_for_frame(self, &numScales, feature.frame);
+
+
+        if (numScales == 0 && dropFeaturesWithoutScale) {
+            features[i].peakScore = 0;
+            continue;
+        }
+        vl_index bestScale=0;
+        double chosenScale = 0.0;
+
+        //choose the largest possible scale
+        for (j = 0; j < (signed)numScales; ++j) {
+            if (scales[j].scale > chosenScale) {
+                chosenScale = scales[j].scale;
+                bestScale = j;
+            }
+        }
+        VlCovDetFeature* scaled = &features[i];
+        scaled->laplacianScaleScore = scales[bestScale].score;
+        scaled->frame.a11 *= scales[bestScale].scale;
+        scaled->frame.a21 *= scales[bestScale].scale;
+        scaled->frame.a12 *= scales[bestScale].scale;
+        scaled->frame.a22 *= scales[bestScale].scale;
+    }
+
+}
 void extractor::openCVimg_descips_compute(std::vector<std::string>& paths, Mat& allDescripts, std::vector<KeyPoint>& keypoints)
 {
     clock_t sTime = clock();
@@ -232,15 +291,35 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     cout << "    ->vlfeat SIFT descriptor computing spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec......" << endl;*/
 }
 
-void extractor::covdetSIFT(cv::Mat &img) {
-    size_t numRows = img.rows;
-    size_t numCols = img.cols;
-    
-    //set covdet detector to different of gaussian
+void extractor::covdetSIFT(cv::Mat &img, Mat& descriptors, std::vector<KeyPoint> &kpts) {
+    if (!img.data) {
+        std::cout << "covdetSIFT: ERROR: empty img!\n";
+        return;
+    }
+    descriptors.release();
+    cv::Mat imgResize;
+    cv::resize(img, imgResize, cv::Size(), params::imgScale, params::imgScale, cv::INTER_AREA);
+    size_t width = imgResize.size().width;
+    size_t height = imgResize.size().height;
+    int noctave;
+    kpts.clear();
+
+    //set mapper container that for descriptor selector
+    std::vector<float> responseScores;
+
+    //set covdet detector to DoG method(SIFT)
     VlCovDet* covdet = vl_covdet_new(VlCovDetMethod::VL_COVDET_METHOD_DOG);
 
+    //use maximum num of octave
+    if (params::octave == -1) {
+        noctave = log2(min(width, height));
+    }
+    else
+        noctave = params::octave;
+    vl_covdet_set_num_octaves(covdet, noctave);
+
     // set various parameters
-    vl_covdet_set_first_octave(covdet, -1); //covdet default = -1
+    vl_covdet_set_first_octave(covdet, params::firstOctaveInd); //covdet default = -1
     // vl_covdet_set_num_octaves(covdet, -1); //covdet default = -1
     // vl_covdet_set_max_num_orientations(covdet, 4);//covdet default = 4
     // vl_covdet_set_non_extrema_suppression_threshold(covdet, 0.5); //covdet default = 0.5
@@ -248,28 +327,35 @@ void extractor::covdetSIFT(cv::Mat &img) {
     vl_covdet_set_peak_threshold(covdet, params::siftPeakThres); //covdet default = 0.01
     vl_covdet_set_edge_threshold(covdet, params::siftEdgeThres); //covdet default = 10.0
 
-    //process image
+    //process image and input to detector
     cv::Mat imgFloat;
-    img.convertTo(imgFloat, CV_32F);
-    vl_covdet_put_image(covdet,imgFloat.ptr<float>(0) , numRows, numCols);
+    imgResize.convertTo(imgFloat, CV_32F);
+    if (!imgFloat.isContinuous()) {
+        throw std::invalid_argument("covdet: ERROR: incontinous Mat is found!");
+    }
+    vl_covdet_put_image(covdet,imgFloat.ptr<float>(0) , width, height);
 
-    //do detection
+    //do detection on image
     vl_covdet_detect(covdet);
 
     //drop marginal features use recommended value 1
     vl_covdet_drop_features_outside(covdet, 1);
 
     // compute the affine shape of the features, drop feature that cannot produce reliable affine shape
-    vl_covdet_extract_affine_shape(covdet);
+    /*vl_covdet_extract_affine_shape(covdet);*/
 
-    // compute the orientation of the features, maximum maxNumOrient orientation are created and feature are duplicated
+    // compute the orientation of the features, maximum num(maxNumOrient) orientation are created and corresponding feature are duplicated
     vl_covdet_extract_orientations(covdet);
+
+    // customized extract scales function
+    vl_feature_scale_extraction(covdet);
+    /*vl_covdet_extract_laplacian_scales(covdet);*/
 
     //get feature frame back
     vl_size numFeatures = vl_covdet_get_num_features(covdet);
-    VlCovDetFeature const* feature = (VlCovDetFeature const* )vl_covdet_get_features(covdet);
+    VlCovDetFeature const* feature = (VlCovDetFeature const*)vl_covdet_get_features(covdet);
 
-    //process the features sift process the patch around 16*16 windows around the feature
+    //init sift feature builder process the patch 16*16 windows around the feature
     VlSiftFilt* sift = vl_sift_new(16, 16, 1, 3, 0);
 
     //use recommended setting
@@ -279,30 +365,90 @@ void extractor::covdetSIFT(cv::Mat &img) {
     double patchRelativeSmoothing = 1;
     vl_size w = 2 * patchResolution + 1;
     double patchStep = patchRelativeExtent / patchResolution;
-    //construct SIFT features
+
+    /***construct SIFT features***/
     //we store the keypoints and descriptors in form of opencv
-    std::vector<KeyPoint> kpts;
-    cv::Mat descrips(numFeatures,dim,CV_32F);
+    cv::Mat descrips;
+    descrips.reserve(2000);
+    std::vector<KeyPoint> tempKpts;
     for (int i = 0; i < numFeatures; i++) {
-        //extract patches from frames
+        auto currentFrame = feature[i].frame;
+        //build keypoint
+
+        KeyPoint kpt;
+        kpt.pt.x = currentFrame.x;
+        kpt.pt.y = currentFrame.y;
+        kpt.response = feature[i].peakScore;
+        if (!kpt.response) {
+            continue;
+        }
+        responseScores.push_back(kpt.response);
+        //delete zero scale feature
+        
+        //extract orientation
+        //vl_size numOrient;
+        //VlCovDetFeatureOrientation* orients = vl_covdet_extract_orientations_for_frame(covdet, &numOrient, currentFrame);
+        ////after vl_covdet_extract_orientations(), it should always one orientation
+        //kpt.angle = orients[0].angle * 180.0 / CV_PI; //opencv use degree instead
+
+        kpt.angle = atan2(currentFrame.a21, currentFrame.a11) * 180.0f / VL_PI;
+
+        //extract scale
+        //vl_size numScales;
+        //VlCovDetFeatureLaplacianScale* scales = vl_covdet_extract_laplacian_scales_for_frame(covdet, &numScales, currentFrame);
+        ////By vl_sift, always keep the largest possible scale
+        //double scale = 0.0;
+        //for (int i = 0; i < numScales; i++) {
+        //    if (scales[i].scale > scale)
+        //        scale = scales[i].scale;
+        //}
+
+        float det = currentFrame.a11 * currentFrame.a22 - currentFrame.a12 * currentFrame.a21;
+        float size = sqrt(fabs(det));
+        kpt.size = size;
+
+        //pushback
+        tempKpts.push_back(kpt);
+        
+        //extract patch from frame and build sift descriptor
         std::vector<float> patch(w * w);
         std::vector<float> grads(2 * w * w);
         vl_covdet_extract_patch_for_frame(covdet, patch.data(), 
                                           patchResolution, patchRelativeExtent, 
-                                          patchRelativeSmoothing, feature[i].frame);
-        //computes and stores amplitude and angle gradient in the same grads vector
+                                          patchRelativeSmoothing, currentFrame);
+        //computes and stores amplitude and angle gradient in the grads vector with two layers.
         vl_imgradient_polar_f(&grads[0], &grads[1], 2, 2 * w, patch.data(), w, w, w);
-
+        Mat currentDescrip(1, dim, CV_32F);
         vl_sift_calc_raw_descriptor(sift, grads.data(),
-            descrips.ptr<float>(i), (int)w, (int)w,
+            currentDescrip.ptr<float>(0), (int)w, (int)w,
             (double)(w - 1) / 2, (double)(w - 1) / 2,
             (double)patchRelativeExtent / (3.0 * (4 + 1) / 2) / patchStep,
-            VL_PI / 2); // kpt scale: because img shrink for 1 / patchStep, and smoothing is 1.0; Besides, keypoint should at the center of extracted patch
+            VL_PI / 2); // scale seting: because img shrink for 1 / patchStep, and inner smoothing is 1.0; Besides, keypoint should at the center of extracted patch
         //quote: In order to be equivalent to a standard SIFT descriptor the image gradient must be computed at a smoothing level equal to the scale of the keypoint
+        /*cv::Mat tempDesript(1, 128, CV_32F);
+        flip_descriptor(tempDesript, currentDescrip.ptr<float>(0));*/
+        descrips.push_back(currentDescrip);
         
     }
     
+    //sort and only stores the keypoints/descriptors with the highest response
+    if (params::maxNumFeatures != -1) {
+        descriptors.reserve(params::maxNumFeatures);
+        std::vector<int> response_index(responseScores.size());
+        std::iota(response_index.begin(), response_index.end(), 0);
+        std::sort(response_index.begin(), response_index.end(), [&](size_t left, size_t right) {return responseScores[left] < responseScores[right]; });
+        for (int i = 0; i < params::maxNumFeatures && i<responseScores.size(); i++) {
+            //extract descriptors and keypoints
+            descriptors.push_back(descrips.row(response_index[i]));
+            kpts.push_back(tempKpts[response_index[i]]);
+        }
+    }
+    else {
+        descriptors = descrips.clone();
+    }
 
+    vl_sift_delete(sift);
+    vl_covdet_delete(covdet);
 }
 
 

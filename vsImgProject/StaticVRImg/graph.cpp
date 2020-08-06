@@ -242,6 +242,14 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	/*SETVANV(&mygraph, "degree", &deg_vec);*/
 	
 	//add edge
+	double radDegLim;
+	if (params::radDegLim == -1) {
+		radDegLim = std::numeric_limits<double>::max();
+	}
+	else
+	{
+		radDegLim = params::radDegLim;
+	}
 	std::vector<igraph_real_t> edges;
 	edges.reserve(params::maxNumDeg * 2 *n_vertices);
 	for (size_t i = 0; i < n_vertices; i++) {
@@ -251,7 +259,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 		*	b. the edge distance is constrained that edge should not exceed radDegLim * kpts.scale
 		*/
 		for (size_t j = 1; j<params::maxNumDeg+1 && j < n_vertices; j++) {
-			if (dists(i, indexes(j, i)) < params::radDegLim * VAN(&mygraph,"scale",i)) {
+			if (dists(i, indexes(j, i)) < radDegLim * VAN(&mygraph,"scale",i)) {
 				edges.push_back(i);
 				edges.push_back(indexes(j,i));
 			}
@@ -266,7 +274,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	SETGAN(&mygraph, "edges", igraph_ecount(&mygraph)); //set edge number attribute
 
 	//set edge weoght attributes, can be deleted later
-	std::vector<igraph_real_t> eweight(igraph_ecount(&mygraph), 1);
+	std::vector<igraph_real_t> eweight(igraph_ecount(&mygraph), 1.0);
 	igraph_real_t* edgeW = eweight.data();
 	igraph_vector_t eweight_vec;
 	igraph_vector_view(&eweight_vec, edgeW, igraph_ecount(&mygraph));

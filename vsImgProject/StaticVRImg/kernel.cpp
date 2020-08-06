@@ -246,6 +246,7 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
                             auto& vers1 = inv1[val];
                             auto& vers2 = inv2[val];
                             double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], database_graphs[j - n_query_graphs]);
+                            //raw_scores is only for debug
                             raw_scores[i][j - n_query_graphs] = raw_scores[i][j - n_query_graphs] + kernelval;
                             kernelval *= edge_norm * edge_norm;
                             /*auto ptr = igraph_matrix_e_ptr(&k_matrix, 1, 0);

@@ -12,11 +12,16 @@ namespace extractor {
 	void vlimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& cv_keypoints);
 
 	//simple single image descriptor computing
-	//img1: must be grayImg
+	//img: input img must be grayscale
+	//kpts: container for detected keypoint
+	//descriptors: container for SIFT descriptors
 	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints);
 
 	//covdet implementation of SIFT
-	void covdetSIFT(cv::Mat& img);
+	//img: input img must be grayscale
+	//kpts: container for detected keypoint
+	//descriptors: container for SIFT descriptors
+	void covdetSIFT(cv::Mat& img, cv::Mat& descriptors, std::vector<cv::KeyPoint>& kpts);
 }
 #endif // ! _DESCRIP_EXT_H
 

@@ -38,7 +38,7 @@ namespace kernel {
 		std::vector < std::vector<double>> robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs);
 		igraph_matrix_t robustKernelCom();
 		double robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j);
-
+		std::vector<igraph_t>& getGraphs() { return this->graphs; };
 		//deprecated functions
 		std::vector<std::vector<int>> raw_scores;
 	private:

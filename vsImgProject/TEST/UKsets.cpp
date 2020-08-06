@@ -9,7 +9,8 @@
 #include <omp.h>
 #include <fstream>
 
-//ith arg: path to the ukbdata
+bool useCOvdet = true;
+//1th arg: path to the ukbdata
 void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//read UKBench data
 	//sample test categories
@@ -47,7 +48,11 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 		cv::cvtColor(cv::imread(imgs[i]), grayImg, cv::COLOR_BGR2GRAY);
 
 		try {
-			extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
+			if (useCOvdet) {
+				extractor::covdetSIFT(grayImg, descripts1, kpts1);
+			}
+			else
+				extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
 		}
 		catch (std::invalid_argument& e) {
 			std::cout << e.what() << std::endl;
@@ -77,7 +82,10 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 					std::cout << " --> milestone " << 4 * i + j << " imgs" << std::endl;
 				}
 				try {
-					extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
+					if (useCOvdet)
+						extractor::covdetSIFT(grayImg, descripts2, kpts2);
+					else
+						extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
 				}
 				catch (std::invalid_argument& e) {
 					std::cout << e.what() << std::endl;
@@ -159,7 +167,7 @@ void UKB::UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSiz
 		std::vector<cv::KeyPoint> kpts1;
 
 		if (!fs::exists(fs::path(imgs[i]))) {
-			std::cout << "vlfeat sift feature detection: Warning: " << imgs[i] << " does not exist!" << std::endl;
+			std::cout << "vlfeat vlad: Warning: " << imgs[i] << " does not exist!" << std::endl;
 			continue;
 		}
 		cv::Mat grayImg;
@@ -246,7 +254,10 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 		grayImg=cv::imread(imgs[i],cv::IMREAD_GRAYSCALE);
 
 		try {
-			extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
+			if (useCOvdet)
+				extractor::covdetSIFT(grayImg, descripts1, kpts1);
+			else
+				extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
 		}
 		catch (std::invalid_argument& e) {
 			std::cout << e.what() << std::endl;
@@ -262,7 +273,10 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 		//store all query graphs and prepare for comparing with UKBdatasets
 	}
 	std::cout << " -->finished query graphs building start iteration over database imgsets" << std::endl;
-
+	auto& kernelgraphs = kernelCompObj.getGraphs();
+	for (int i = 0; i < kernelgraphs.size(); i++) {
+		std::cout << i << "th graph node number: " << igraph_vcount(&kernelgraphs[i]) << std::endl;
+	}
 	//iterate the whole datasets and records the score
 	int unit_train = 50;
 	int n_iter = imgsetSize / unit_train, begin, end;
@@ -291,7 +305,10 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 				cv::Mat descripts2;
 				std::vector<cv::KeyPoint> kpts2;
 				try {
-					extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
+					if (useCOvdet)
+						extractor::covdetSIFT(grayImg, descripts2, kpts2);
+					else
+						extractor::vlimg_descips_compute_simple(grayImg, descripts2, kpts2);
 				}
 				catch (std::invalid_argument& e) {
 					std::cout << e.what() << std::endl;
@@ -303,6 +320,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 				if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
 			}
 		}
+		//output node number
 		//compute scores for the query graphs
 		auto scores_block = kernelCompObj.robustKernelCompWithQueryArray(databaseGraphs);
 
@@ -378,10 +396,10 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	for (int i = 0; i < sampleSize; i++) {
 		std::vector<int> temp(indexes_local);
 		//cout score function
-		std::cout << "scores for every images: " << std::endl;
+		/*std::cout << "scores for every images: " << std::endl;
 		for (int j = 0; j < scores[i].size(); j++) {
 			std::cout << scores[i][j] << " ";
-		}
+		}*/
 
 		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] > scores[i][right]; });
 		//report temp after rerank
@@ -389,14 +407,13 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 		for (int j = 0; j < raw_scores[i].size(); j++) {
 			std::cout << raw_scores[i][j] << " ";
 		}*/
-
-		std::cout << std::endl << std::endl;
 		//get the first 4 numbers
 		for (int j = 0; j < 4; j++) {
 			if (ukb.imgIndexs[temp[j]] == indexes[i]) {
 				single_scores[i] += 1.0;
 			}
 		}
+		std::cout << single_scores[i] << "  \n";
 		score_sum += single_scores[i];
 	}
 	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
@@ -487,14 +504,23 @@ void UKB::UKBench::UKdataTrain(int n_catTrain) {
 		//read and train descriptors, kpts
 		cv::Mat descriptor;
 		std::vector<cv::KeyPoint> kpts;
-		try {
-			extractor::vlimg_descips_compute(imgs, descriptor, kpts);
-		}
-		catch (std::invalid_argument& e) {
-			std::cout << e.what() << std::endl;
-			return;
-		};
 
+		for (int j = 0; j < imgs.size(); j++) {
+			cv::Mat locDescrip;
+			try {
+				cv::Mat grayImg = cv::imread(imgs[j], cv::IMREAD_GRAYSCALE);
+				if (useCOvdet)
+					extractor::covdetSIFT(grayImg, locDescrip, kpts);
+				else
+					extractor::vlimg_descips_compute_simple(grayImg, locDescrip, kpts);
+				descriptor.push_back(locDescrip);
+			}
+			catch (std::invalid_argument& e) {
+				std::cout << e.what() << std::endl;
+				return;
+			};
+		}
+	
 		std::cout << " --> finish feature detection for " << begin << " --- " << end << std::endl;
 		//add to the total descriptors
 		allDescrips.push_back(descriptor);
@@ -562,6 +588,14 @@ void UKB::UKResWriter(std::string name, std::vector<double> UKBScores) {
 	}
 	CSVOutput.close();
 	std::cout << " --> Finished writing UKBScore " << name << " :" << UKBScores.size() << std::endl;
+}
+
+void UKB::UKBench::UKBpreprocess() {
+	if (this->imgPaths.empty() || this->imgIndexs.empty()) {
+		throw std::invalid_argument("ERROR: data is empty, read image data before preprocess!");
+	}
+
+	//iterate through the 
 }
 
 

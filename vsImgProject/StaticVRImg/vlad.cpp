@@ -10,6 +10,7 @@
 
 using params = fileManager::parameters;
 using namespace cv;
+bool useCovdet = true;
 vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
     //read imgs from files and extracts features
 
@@ -31,7 +32,13 @@ vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
         cv::Mat grayImg;
         
         cv::cvtColor(cv::imread(paths[i]), grayImg, cv::COLOR_BGR2GRAY);
-        extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
+        if (useCovdet)
+            extractor::covdetSIFT(grayImg, descripts1, kpts1);
+        else
+        {
+            extractor::vlimg_descips_compute_simple(grayImg, descripts1, kpts1);
+        }
+        
         n_descrips.push_back(descripts1.rows);
         allDescripts.push_back(descripts1);
     }
@@ -125,8 +132,14 @@ void vlad::vlad::search(cv::Mat img, std::vector<int>& ind, std::vector<double>&
 
     cv::Mat descripts1;
     std::vector<cv::KeyPoint> kpts1;
-    try{  
-        extractor::vlimg_descips_compute_simple(img, descripts1, kpts1);
+    try{ 
+        if (useCovdet)
+            extractor::covdetSIFT(img, descripts1, kpts1);
+        else
+        {
+            extractor::vlimg_descips_compute_simple(img, descripts1, kpts1);
+        }
+        
     }
     catch (std::invalid_argument& e) {
         std::cout << e.what() << std::endl;

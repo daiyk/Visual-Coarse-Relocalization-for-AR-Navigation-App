@@ -1,18 +1,19 @@
 {
   "noctaveLayer": 3,
   "octave": -1,
-  "firstOctaveInd": 0,
+  "firstOctaveInd": 1,
   "sigma_0": 1.6,
-  "centers": 20000,
+  "centers": 10000,
   "numOfAttemp": 3,
   "numOfItera": 20,
   "accuracy": 0.003,
   "MATCH_THRES": 0.7,
   "numOfNN": 2,
-  "maxNumDeg": 8,
-  "radDegLim": 20,
-  "imgScale": 0.5,
+  "maxNumDeg": 10,
+  "radDegLim": -1,
+  "imgScale": 1.0,
   "vladCenters": 64,
   "sampleSize": 80,
-  "imgsetSize": 1000
+  "imgsetSize": 1000,
+  "maxNumFeatures": 500
 }
