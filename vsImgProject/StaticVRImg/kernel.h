@@ -60,7 +60,7 @@ namespace kernel {
 	class recurRobustKel {
 	public:
 		recurRobustKel(int h_max, size_t n_labels); //h_max is the number of max iteration, n_labels is the length of dict
-		igraph_matrix_t robustKernelCom();
+		auto robustKernelCom();
 		double robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind = -1);
 		void push_back(igraph_t newgraph);
 		void graphPrepro(igraph_t& graph);
