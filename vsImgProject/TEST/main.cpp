@@ -59,13 +59,12 @@ int main(int argc, const char* argv[]) {
 	if (argc == 3) {
 		UKB::UKtest(argc, argv, params::sampleSize, params::imgsetSize);
 		//test two imgs
-		/*graphBuildPlusKernelTest(argc, argv);*/
 	}
-	else if(argc==4)
+	if(argc==4)
 	{
-		/*graphBuildPlusKernelTest(argc, argv);*/
+		graphBuildPlusKernelTest(argc, argv);
 		/*graphbuildTest(argc, argv);*/
-		UKB::UKVladTest(argc, argv, params::sampleSize, params::imgsetSize);
+		/*UKB::UKVladTest(argc, argv, params::sampleSize, params::imgsetSize);*/
 	}
 	return 0;
 

@@ -21,9 +21,11 @@ namespace matcher {
 			kdTree(cv::Mat& source);
 			~kdTree();
 			std::vector<cv::DMatch> search(cv::Mat& query);
+			size_t size() { return numWords; }
 			static matchOut kdTreeDemo(std::string& img1, std::string& img2, bool display = true);
 		private:
 			VlKDForest* tree=nullptr;
+			size_t numWords;
 	};
 	
 	std::vector<cv::DMatch> opencvFlannMatcher(cv::Mat& source, cv::Mat& query);

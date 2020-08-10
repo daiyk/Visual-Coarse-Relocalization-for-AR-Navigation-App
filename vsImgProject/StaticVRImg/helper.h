@@ -15,7 +15,7 @@ namespace helper {
 	bool isEqual(double x, double y);
 
 	//1th score functions: multiplicative
-	void computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores);
+	void computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores, bool tfidfWeight = false);
 	
 	//2th score function: discriminative query score based
 	void computeScore2(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores);

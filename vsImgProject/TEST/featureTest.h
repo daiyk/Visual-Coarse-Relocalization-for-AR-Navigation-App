@@ -10,7 +10,18 @@
 
 using params = fileManager::parameters;
 inline void covdetTest() {
-	std::string img1 = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\imgs\\simple\\train\\IMG_20200529_183829.jpg";
+	std::string img1 = "D:\\thesis\\datasets\\ukbench\\full\\ukbench00016.jpg";
+	std::string kcenterPath = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\vsImgProject\\x64\\Release\\Result\\UKB_vlfeat_1000_kmeansCenter.yml";
+	cv::FileStorage reader;
+	reader.open(kcenterPath, cv::FileStorage::READ);
+	if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; return; }
+
+	//read kcenters
+	cv::Mat kCenters;
+	reader["kcenters"] >> kCenters;
+	reader.release();
+	
+	
 	cv::Mat imgGray = cv::imread(img1, cv::IMREAD_GRAYSCALE);
 	if (!imgGray.data) {
 		std::cout << "img load failed!";
@@ -39,19 +50,25 @@ inline void covdetTest() {
 	cv::imshow("sift keypoints", outsiftImg);
 	cv::waitKey();*/
 
-	auto bestMatches = matcher::opencvFlannMatcher(siftDescrips, covdetDescrips);
 
+	/*matcher::kdTree matchers(kCenters);*/
+	//find the corresponding matches
+	auto bestMatches = matcher::opencvFlannMatcher(kCenters,covdetDescrips);
+	auto bestMatchesSift = matcher::opencvFlannMatcher(kCenters, siftDescrips);
+	/*auto bestMatches = matcher::opencvFlannMatcher(siftDescrips, covdetDescrips);*/
+	std::cout << "covdet best matches size: " << bestMatches.size() << std::endl;
+	std::cout<< "sift best matches size: " << bestMatchesSift.size() << std::endl;
 	//print descriptors
-	for (int i = 0; i < bestMatches.size(); i++) {
+	/*for (int i = 0; i < 10; i++) {
 		std::cout << "covdetDescrip " << i << ": \n" << covdetDescrips.row(bestMatches[i].queryIdx);
 		std::cout << "siftDescrip " << i << ": \n" << siftDescrips.row(bestMatches[i].trainIdx);
 		std::cout << "difference: \n" << covdetDescrips.row(bestMatches[i].queryIdx) - siftDescrips.row(bestMatches[i].trainIdx);
-	}
+	}*/
 
-	cv::drawMatches(imgResize, covdetKpts, imgResize, siftKpts, bestMatches, imgColor, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+	/*cv::drawMatches(imgResize, covdetKpts, imgResize, siftKpts, bestMatches, imgColor, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 	cv::namedWindow("matches keypoints", cv::WINDOW_NORMAL);
 	cv::imshow("matches keypoints", imgColor);
-	cv::waitKey(); 
+	cv::waitKey(); */
 }
 
 #endif

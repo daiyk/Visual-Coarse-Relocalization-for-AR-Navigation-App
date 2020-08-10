@@ -70,7 +70,3 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters, int
     }
     cout << "-> VLFeat kmeans learning spent " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec" << endl;
 }
-
-void cluster::tf_idf() {
-
-}

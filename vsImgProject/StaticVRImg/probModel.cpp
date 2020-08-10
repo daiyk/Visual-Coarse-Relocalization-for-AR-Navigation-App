@@ -5,15 +5,18 @@ using namespace std;
 void probModel::processSampleLocation() {
 
 }
+
+//1th arg: matches from image to the dictionary
+//2th arg: doc index
 void probModel::tfidf::addDoc(vector<DMatch>& matches, int index) {
 	//process and add word statistics to the matrix weight
-	if (doc == 0 || dictSize == 0)
+	if (doc == 0 || dictSize == 0) {
 		std::cout << "ERROR: doc or dictsize is unset";
 		return;
-	for (size_t i = 0; i < matches.size; i++) {
+	}
+	for (size_t i = 0; i < matches.size(); i++) {
 		this->weights.at<float>(index, matches[i].trainIdx) += 1.0;
 	}
-
 }
 
 void probModel::tfidf::compute() {
@@ -34,7 +37,7 @@ void probModel::tfidf::compute() {
 	//compute inverse document freq (IDF)
 	std::vector<float> inv_doc_freq(dictSize);
 	for (int i = 0; i < dictSize; i++) {
-		inv_doc_freq[i] = log((float)doc / (countNonZero(this->weights.col[i])+1));
+		inv_doc_freq[i] = log((float)doc / (countNonZero(this->weights.col(i))+1));
 	}
 	
 	//compute tf-idf weights
@@ -43,6 +46,8 @@ void probModel::tfidf::compute() {
 			this->weights.at<float>(i, j) = term_freq.at<float>(i, j) * inv_doc_freq[j];
 		}
 	}
+	//amplify tfidf scores
+	this->weights *= 10.0;
 }
 
 void probModel::tfidf::clear() {

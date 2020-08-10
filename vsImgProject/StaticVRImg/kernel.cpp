@@ -5,6 +5,7 @@
 #include <vector>
 #include <numeric>
 #include <set>
+#include <bitset>
 #include <unordered_map>
 #include <math.h>
 #include <stdio.h>
@@ -36,14 +37,14 @@ kernel::robustKernel::~robustKernel() {
     }
 }
 
-void kernel::robustKernel::push_back(igraph_t newgraph) {
+void kernel::robustKernel::push_back(igraph_t newgraph, int doc_ind) {
     igraph_t newpushgraph;
     igraph_copy(&newpushgraph, &newgraph);
     this->graphs.push_back(newpushgraph);
-    this->graphPrepro(newpushgraph);
+    this->graphPrepro(newpushgraph,doc_ind);
 }
 
-void kernel::robustKernel::graphPrepro(igraph_t& graph) {
+void kernel::robustKernel::graphPrepro(igraph_t& graph, int doc_ind) {
     igraph_vector_t edges, labels;
     igraph_vector_init(&edges, 0);
     igraph_vector_init(&labels, 0);
@@ -66,7 +67,9 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph) {
     for (auto& inv_idx : inverted_index) {
         this->label_sets.insert(inv_idx.first);
         //compute raw selfkernel value for each query graphs
-        kernelval += robustKernelVal(inv_idx.second, inv_idx.second, graph, graph);
+
+        kernelval += robustKernelVal(inv_idx.second, inv_idx.second, graph, graph,doc_ind);
+      
     }
     this->raw_self_kernel.push_back(kernelval);
      
@@ -79,17 +82,9 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph) {
     igraph_vector_destroy(&labels);
 }
 
-double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j) {
+double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind) {
 
     std::vector<double> kernelVals;
-    //get the adjacency list
-    //igraph_adjlist_t adjlist_i, adjlist_j;
-    //igraph_adjlist_init(&graph_i, &adjlist_i, IGRAPH_ALL);
-    //igraph_adjlist_init(&graph_j, &adjlist_j, IGRAPH_ALL);
-
-    //igraph_t& graph_i = this->graphs[i];
-    //igraph_t& graph_j = this->graphs[j];
-    //compute the edge norm
 
     //?? edge norm should be obatained from edge weight computation
     
@@ -106,12 +101,21 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
             continue; 
         }
         //create the nei vector
-        std::vector<int> nei1_vec(this->n_labels, 0);
+        std::vector<double> nei1_vec(this->n_labels, 0);
         //igraph_vector_t nei1_vec;
-        //igraph_vector_init(&nei1_vec, this->n_labels);
-        for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
-            nei1_vec[(int)VECTOR(nei1_lab)[m]] += 1;
+        //depend on whether supply doc_ind to do tfidf weighting
+        if (!this->tfidf.empty() && doc_ind != -1) {
+            for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
+                nei1_vec[(int)VECTOR(nei1_lab)[m]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei1_lab)[m]);
+            }
         }
+        else
+        {
+            for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
+                nei1_vec[(int)VECTOR(nei1_lab)[m]] += 1;
+            }
+        }
+        
         for (size_t j = 0; j < vert2.size(); j++) {
             igraph_vector_t nei2_lab;
             igraph_vector_init(&nei2_lab, 0);
@@ -127,12 +131,21 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
             std::vector<int> nei2_vec(this->n_labels, 0);
             //igraph_vector_t nei2_vec;
             //igraph_vector_init(&nei2_vec, this->n_labels);
-            for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
-                nei2_vec[(int)VECTOR(nei2_lab)[n]] += 1;
+
+            if (!this->tfidf.empty() && doc_ind != -1) {
+                for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
+                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei2_lab)[n]);
+                }
             }
+            else
+            {
+                for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
+                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += 1;
+                }
+            } 
 
             //rebuild the vector with element-wise min
-            std::vector<int> cwiseMinVec;
+            std::vector<double> cwiseMinVec;
             cwiseMinVec.reserve(this->n_labels);
             std::transform(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), std::back_inserter(cwiseMinVec), [](double a, double b) {return std::min(a, b); });
 
@@ -161,7 +174,9 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
 }
 
 //1th arg: the database graphs that query graphs need to search among database
-std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs) {
+//2th arg: indexes: sample image index
+//3th arg: whether to use tfidfweight for computing
+std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int>* indexes, std::vector<int> *source_index, bool tfidfWeight) {
     //count label value and construct index corresponding for adjancy matrix
     /*std::set<int> label_sets;*/
     int n_query_graphs = this->graphs.size();
@@ -203,7 +218,12 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
         double kernelval = 0.0;
         for (auto inv_idx : inverted_index) {
             labelSets.insert(inv_idx.first);
-            kernelval += robustKernelVal(inv_idx.second, inv_idx.second, database_graphs[i], database_graphs[i]);
+            if(tfidfWeight&&source_index)
+                kernelval += robustKernelVal(inv_idx.second, inv_idx.second, database_graphs[i], database_graphs[i],(*source_index)[i]);
+            else
+            {
+                kernelval += robustKernelVal(inv_idx.second, inv_idx.second, database_graphs[i], database_graphs[i]);
+            }
         }
         rawSelfKernel.push_back(kernelval);
         invertedIndices.push_back(inverted_index);
@@ -211,13 +231,13 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
         verNums.push_back(igraph_vector_size(&labels));
         edgeNums.push_back(edgeLen / 2);
 
-        //compute normalized edge norm for each graph
         igraph_vector_destroy(&edges);
         igraph_vector_destroy(&labels);
     }
 
     int n_labels = labelSets.size();
     std::vector<std::vector<double>> k_matrix(n_query_graphs, std::vector<double>(n_database_graphs, 0.0));
+    //raw score only used for debugging
     raw_scores = std::vector<std::vector<int>>(n_query_graphs, std::vector<int>(n_database_graphs, 0));
     /*igraph_matrix_t k_matrix;
     igraph_matrix_init(&k_matrix, n_query_graphs, n_database_graphs);
@@ -232,25 +252,35 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
             for (int i = 0; i < n_query_graphs; i++) {
                 //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
                 auto& inv1 = invertedIndices[i]; //query graph
+
+                //the index of query image in the database for tfidf score indexing if it is not nullptr
+                int doc_index = indexes&&tfidfWeight ? (*indexes)[i]:-1;
+
                 for (int j = n_query_graphs; j < n_query_graphs + n_database_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
-                    double edge_norm = 0.0;
                     auto& inv2 = invertedIndices[j]; //database graph
-                    if (edgeNums[i] + edgeNums[j] != 0) {
-                        edge_norm = 1.0 / (edgeNums[i] + edgeNums[j]);
-                    }
-                    else {
-                        edge_norm = 0.0;
-                    }
+                    double edge_norm = 0.0;
+                    if (!tfidfWeight) {
+                        if (edgeNums[i] + edgeNums[j] != 0) {
+                            edge_norm = 1.0 / (edgeNums[i] + edgeNums[j]);
+                        }
+                        else {
+                            edge_norm = 0.0;
+                        }
+                    }                   
                     for (auto& val : labelSets) {
                         if (inv1.count(val) && inv2.count(val)) {
                             auto& vers1 = inv1[val];
                             auto& vers2 = inv2[val];
-                            double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], database_graphs[j - n_query_graphs]);
+                            double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], database_graphs[j - n_query_graphs], doc_index);
+                            
                             //raw_scores is only for debug
                             raw_scores[i][j - n_query_graphs] = raw_scores[i][j - n_query_graphs] + kernelval;
-                            kernelval *= edge_norm * edge_norm;
+                            if (!tfidfWeight) {
+                                kernelval *= edge_norm * edge_norm;
+                            }
                             /*auto ptr = igraph_matrix_e_ptr(&k_matrix, 1, 0);
                             *ptr = *ptr+kernelval;
+                            }
                             MATRIX(k_matrix, i, j-n_query_graphs) = MATRIX(k_matrix, i, (j-n_query_graphs)) + kernelval;*/
                             k_matrix[i][j - n_query_graphs] = k_matrix[i][j - n_query_graphs] + kernelval;
                         }
@@ -296,12 +326,9 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
        //            k_matrix[i][j] = k_matrix[i][j] / (this->raw_self_kernel[i] * edge_norm * edge_norm);
        //        }   
        //    }
-    helper::computeScore1(k_matrix, edgeNums, rawSelfKernel);
+    helper::computeScore1(k_matrix, edgeNums, rawSelfKernel,tfidfWeight);
     return k_matrix;
 }
-
-   
-
 
 //compute the robust kernel values for every pair in graph vector: default w.r.t [0] graph as query graph
 igraph_matrix_t kernel::robustKernel::robustKernelCom() {
@@ -543,8 +570,224 @@ void kernel::covisMap::printMap() {
     }
 }
 
-void kernel::covisMap::processSampleLoc() {
+void kernel::covisMap::processSampleLoc(){
 
+}
+
+/****************************/
+/****************************/
+/***** CLASS RECURROBUSTKEL ******/
+/****************************/
+/****************************/
+
+kernel::recurRobustKel::recurRobustKel(int h_max, size_t n_labels):h_max(h_max), n_labels(n_labels) {
+
+}
+
+void kernel::recurRobustKel::push_back(igraph_t newgraph) {
+    igraph_t newpushgraph;
+    igraph_copy(&newpushgraph, &newgraph);
+    this->graphs.push_back(newpushgraph);
+    this->graphPrepro(newpushgraph);
+}
+
+void kernel::recurRobustKel::graphPrepro(igraph_t& graph) {
+    igraph_vector_t edges, labels;
+    igraph_vector_init(&edges, 0);
+    igraph_vector_init(&labels, 0);
+    igraph_get_edgelist(&graph, &edges, true);
+
+    //get the label vecyor
+    VANV(&graph, "label", &labels);
+
+    size_t edgeLen = igraph_vector_size(&edges);
+
+    //build inverted indices
+    unordered_map<int, vector<size_t>> inverted_index;
+    for (size_t i = 0; i < igraph_vector_size(&labels); i++) {
+        inverted_index[VECTOR(labels)[i]].push_back(i);
+    }
+
+    this->inverted_indices.push_back(inverted_index);
+
+    //stores the number of vertices and edges
+    this->ver_nums.push_back(igraph_vector_size(&labels));
+    this->edge_nums.push_back(edgeLen / 2);
+
+    igraph_vector_destroy(&edges);
+    igraph_vector_destroy(&labels);
+}
+
+
+void mark_labels(std::vector<size_t>& ver, size_t val, cv::Mat& nei_vector) {
+    for (auto i : ver) {
+        nei_vector.at<uchar>((int)i, (int)val) = 1;
+    }
+}
+
+igraph_matrix_t kernel::recurRobustKel::robustKernelCom() {
+    //count label value and construct index corresponding for adjancy matrix
+    int n_graphs = this->graphs.size();
+    int n_labels = this->label_sets.size();
+
+    //build neighborhood label vector
+    //iterate the predefined iteration and compute the kernel values
+    igraph_matrix_t k_matrix;
+    igraph_matrix_init(&k_matrix, n_graphs, n_graphs);
+    igraph_matrix_null(&k_matrix);
+
+    double edge_num_sum = 0.0, edge_norm;
+    for (int i = 0; i < n_graphs; i++) {
+        edge_num_sum += this->edge_nums[i];
+    }
+
+    if (!helper::isEqual(edge_num_sum, 0.0)) {
+        edge_norm = 1.0 / edge_num_sum;
+    }
+    else {
+        edge_norm = 0.0;
+    }
+
+    
+    //define the pool and 
+    //iterate over all stored graphs
+    for (int i = 0; i < n_graphs; i++) {
+        //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
+        for (int j = i; j < n_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
+            //build bits neighborhood vector for every nodes of the comparison graphs
+            //bit operation waiting
+            cv::Mat neighboor_vectors_i = cv::Mat::zeros(this->ver_nums[i], this->n_labels, CV_8U);
+            cv::Mat neighboor_vectors_j = cv::Mat::zeros(this->ver_nums[j], this->n_labels, CV_8U);
+            auto inv1 = this->inverted_indices[i];
+            auto inv2 = this->inverted_indices[j];
+
+            for (int h = 0; h < h_max; h++) {
+                //records the pairs of same labels and do iterateions
+                if (h == 0) { 
+                    for (auto& val : inv1) {
+                        if (inv2.count(val.first)) {
+                            auto& vers1 = val.second;
+                            auto& vers2 = inv2[val.first]; 
+
+                            //mark the label on the label vector which label itself
+                            mark_labels(vers1, val.first, neighboor_vectors_i);
+                            mark_labels(vers2, val.first, neighboor_vectors_j);
+
+                            //double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], this->graphs[j]);
+                            //kernelval *= edge_norm * edge_norm;
+                            //if (i == j) {
+                            //    kernelval *= 0.5;
+                            //}
+
+                            ////add value to (i,j) and (j,i), this is the reason why we need to 0.5*kernelval for i=j
+                            //MATRIX(k_matrix, i, j) = MATRIX(k_matrix, i, j) + kernelval;
+                            //MATRIX(k_matrix, j, i) = MATRIX(k_matrix, j, i) + kernelval;
+                        }
+                        else
+                        {
+                            inv1.erase(val.first);
+                        }
+                    }
+                }
+
+                //other than 0 round do iterative kernel computing
+                if (h != 0) {
+                    //extract adjacent nodes and update the neighborhood vector
+
+                }
+            }
+        }
+    }
+    
+
+    //use the raw_self_kernel value instead
+    double sum_self_kernel = pow(MATRIX(k_matrix, 0, 0), 2);
+    double raw_self_kernel = pow(this->raw_self_kernel[0] * edge_norm * edge_norm, 2);
+    
+    //loop all element and compute the    
+    if (!helper::isEqual(raw_self_kernel, 0.0)) {
+        igraph_matrix_scale(&k_matrix, 1.0 / sqrt(raw_self_kernel));
+    }
+    return k_matrix;
+}
+
+
+
+double kernel::recurRobustKel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind) {
+
+    std::vector<double> kernelVals;
+
+    //?? edge norm should be obatained from edge weight computation
+
+    //iterate through the two sets of vertices and compute the kernel values 
+    for (size_t i = 0; i < vert1.size(); i++) {
+        igraph_vector_t nei1_lab;
+        igraph_vector_init(&nei1_lab, 0);
+        igraph_vs_t vert1_nei;
+        igraph_vs_adj(&vert1_nei, vert1[i], IGRAPH_ALL);
+        igraph_cattribute_VANV(&graph_i, "label", vert1_nei, &nei1_lab);
+
+        if (igraph_vector_size(&nei1_lab) == 0) {
+            igraph_vector_destroy(&nei1_lab);
+            continue;
+        }
+        //create the nei vector
+        std::vector<double> nei1_vec(this->n_labels, 0);
+        //igraph_vector_t nei1_vec;
+        //depend on whether supply doc_ind to do tfidf weighting
+
+        for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
+            nei1_vec[(int)VECTOR(nei1_lab)[m]] += 1;
+
+            for (size_t j = 0; j < vert2.size(); j++) {
+                igraph_vector_t nei2_lab;
+                igraph_vector_init(&nei2_lab, 0);
+                igraph_vs_t vert2_nei;
+                igraph_vs_adj(&vert2_nei, vert2[j], IGRAPH_ALL);
+                igraph_cattribute_VANV(&graph_j, "label", vert2_nei, &nei2_lab);
+
+                if (igraph_vector_size(&nei2_lab) == 0) {
+                    igraph_vector_destroy(&nei2_lab);
+                    continue;
+                }
+                //create the nei_vector
+                std::vector<int> nei2_vec(this->n_labels, 0);
+                //igraph_vector_t nei2_vec;
+                //igraph_vector_init(&nei2_vec, this->n_labels);
+
+
+                for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
+                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += 1;
+
+                    //rebuild the vector with element-wise min
+                    std::vector<double> cwiseMinVec;
+                    cwiseMinVec.reserve(this->n_labels);
+                    std::transform(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), std::back_inserter(cwiseMinVec), [](double a, double b) {return std::min(a, b); });
+
+
+                    //multiple two vector and get the kernel value
+                    //igraph_vector_mul(&nei2_vec, &nei1_vec);
+                    //kernelVals.push_back(igraph_vector_sum(&nei2_vec));
+                    kernelVals.push_back(std::inner_product(cwiseMinVec.begin(), cwiseMinVec.end(), cwiseMinVec.begin(), 0.0));
+
+                    igraph_vector_destroy(&nei2_lab);
+                    //igraph_vector_destroy(&nei2_vec);
+                    igraph_vs_destroy(&vert2_nei);
+                }
+                igraph_vector_destroy(&nei1_lab);
+                //igraph_vector_destroy(&nei1_vec);
+                igraph_vs_destroy(&vert1_nei);
+
+            }
+
+            //debug
+            if (!kernelVals.empty()) {
+                return *max_element(kernelVals.begin(), kernelVals.end());
+            }
+            else
+                return 0.0;
+        }
+    }
 }
 //double kernel::robustKernel::robustKernelValTest(std::vector<size_t>& vert1, std::vector<size_t>& vert2, int i, int j, double edge_norm) {
 //

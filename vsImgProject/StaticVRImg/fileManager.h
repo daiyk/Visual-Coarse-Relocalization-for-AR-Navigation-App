@@ -52,6 +52,7 @@ namespace fileManager {
 		static double imgScale;
 		static int maxNumOrient; //max number orientation extracted by vlfeat covdet feature detector
 		static int maxNumFeatures; //max number of features allowed in the detection
+		static std::string tfidfPath; //path to the tfidf score file
 
 		//OpenCV relevent setting
 		static cv::TermCriteria criteria; //stop criteria, COUNT means number of iter, EPS means convergence accuracy

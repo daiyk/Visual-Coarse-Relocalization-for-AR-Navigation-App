@@ -19,7 +19,7 @@ bool helper::isEqual(double x, double y)
     double maxXYOne = std::max({ 1.0, std::fabs(x) , std::fabs(y) });
     return std::fabs(x - y) <= std::numeric_limits<double>::epsilon() * maxXYOne;
 }
-void helper::computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores) {
+void helper::computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores,bool tfidfWeight) {
     int n_query = raw_scores.size();
     int n_database = raw_scores[0].size();
     for (int i = 0; i < n_query; i++)
@@ -27,8 +27,17 @@ void helper::computeScore1(std::vector<std::vector<double>>& raw_scores, std::ve
             if (edge_nums[i] + edge_nums[j + n_query] != 0) {
                 if (!isEqual(raw_self_scores[i], 0.0) && !isEqual(raw_self_scores[j + n_query],0.0)) {
                     double edge_norm = 1.0 / (edge_nums[i] + edge_nums[j + n_query]);
-                        double selfNormi = raw_self_scores[i] * edge_norm * edge_norm;
-                        double selfNormj = raw_self_scores[j + n_query] * edge_norm * edge_norm;
+                    double selfNormi, selfNormj;
+                    if (tfidfWeight) {
+                        selfNormi = raw_self_scores[i];
+                        selfNormj = raw_self_scores[j + n_query];
+                    }
+                    else
+                    {
+                        selfNormi = raw_self_scores[i] * edge_norm * edge_norm;
+                        selfNormj = raw_self_scores[j + n_query] * edge_norm * edge_norm;
+                    }
+                        
                         raw_scores[i][j] = raw_scores[i][j] / std::sqrt(selfNormi * selfNormj);
                 }
             }

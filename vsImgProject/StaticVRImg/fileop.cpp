@@ -26,10 +26,10 @@ int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
 double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
-double fileManager::parameters::imgScale = 1.0; //image scaling during detection and drawing
-int fileManager::parameters::maxNumOrient = 4; //max number orientation extracted by vlfeat covdet feature detector, default 4 for SIFT
+double fileManager::parameters::imgScale = 1.0; // image scaling during detection and drawing
+int fileManager::parameters::maxNumOrient = 4; // max number orientation extracted by vlfeat covdet feature detector, default 4 for SIFT
 int fileManager::parameters::maxNumFeatures = -1;// max number of features allowed in the detection
-
+string fileManager::parameters::tfidfPath = ""; // path to the tfidf file 
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
 float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
@@ -344,6 +344,7 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::PCommonwords = jsonlist.value("PCommonwords", fileManager::parameters::PCommonwords);
     fileManager::parameters::maxNumOrient = jsonlist.value("maxNumOrient", fileManager::parameters::maxNumOrient);
     fileManager::parameters::maxNumFeatures = jsonlist.value("maxNumFeatures", fileManager::parameters::maxNumFeatures);
+    fileManager::parameters::tfidfPath = jsonlist.value("tfidfPath", fileManager::parameters::tfidfPath);
 }
 
 /*

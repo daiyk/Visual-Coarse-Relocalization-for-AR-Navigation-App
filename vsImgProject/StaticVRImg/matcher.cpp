@@ -23,14 +23,13 @@ matcher::kdTree::kdTree(Mat& source) {
     {
         throw std::runtime_error("ERROR: source descriptors are not continuous, kdTree initializer terminated");
     }
-
     //kd-tree building
     int dim = params::descriptDim;
     int numOfTree = 1;
     this->tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
-
+    
     //start building tree build from the first image
-    int numWords = source.rows;
+    numWords = source.rows;
 
     //build kd-tree
     vl_kdforest_build(this->tree, numWords, source.ptr<float>(0));
@@ -60,8 +59,8 @@ std::vector<DMatch> matcher::kdTree::search(Mat& query) {
     std::vector<vl_uint32> NNs(params::numOfNN * numQuery);
     std::vector<float> NNdist(params::numOfNN * numQuery);
 
-    //vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
-    //float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);
+    /*vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
+    float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);*/
 
     int numOfleaf = vl_kdforest_query_with_array(this->tree, NNs.data(), params::numOfNN, numQuery, NNdist.data(), query.ptr<float>(0));
 
