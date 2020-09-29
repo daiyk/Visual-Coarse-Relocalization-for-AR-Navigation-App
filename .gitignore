@@ -60,3 +60,6 @@ shareedit
 *.graphml
 *.json
 *.txt
+
+# all property file
+*.props
