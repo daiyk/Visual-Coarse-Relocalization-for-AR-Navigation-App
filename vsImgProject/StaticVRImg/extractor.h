@@ -2,6 +2,7 @@
 
 #ifndef _EXTRACTOR_H
 #define _EXTRACTOR_H
+#include <colmap/util/bitmap.h>
 #include <vector>
 #include <opencv2/core.hpp>
 namespace extractor {
@@ -15,8 +16,7 @@ namespace extractor {
 	//img: input img must be grayscale
 	//kpts: container for detected keypoint
 	//descriptors: container for SIFT descriptors
-	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints);
-
+	void vlimg_descips_compute_simple(cv::Mat& img1, cv::Mat& Descripts, std::vector<cv::KeyPoint>& cv_keypoints, colmap::Bitmap* bitmap = nullptr);
 	//covdet implementation of SIFT
 	//img: input img must be grayscale
 	//kpts: container for detected keypoint

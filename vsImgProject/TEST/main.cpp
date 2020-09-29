@@ -13,57 +13,61 @@
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/graph.h"
 #include "StaticVRImg/vlad.h"
+#include "StaticVRImg/probModel.h"
 using params = fileManager::parameters;
-std::string type2str(int type) {
-	std::string r;
 
-	uchar depth = type & CV_MAT_DEPTH_MASK;
-	uchar chans = 1 + (type >> CV_CN_SHIFT);
-
-	switch (depth) {
-	case CV_8U:  r = "8U"; break;
-	case CV_8S:  r = "8S"; break;
-	case CV_16U: r = "16U"; break;
-	case CV_16S: r = "16S"; break;
-	case CV_32S: r = "32S"; break;
-	case CV_32F: r = "32F"; break;
-	case CV_64F: r = "64F"; break;
-	default:     r = "User"; break;
+void vladTrain(std::string path) {
+	std::string testFolder = path;
+	std::vector<std::string> paths;
+	UKB::UKBench ukb(testFolder, 1000);
+	for (int i = 0; i < ukb.imgPaths.size(); i++) {
+		for (int j = 0; j < ukb.imgPaths[i].size(); j++) {
+			paths.push_back(ukb.imgPaths[i][j]);
+		}
 	}
 
-	r += "C";
-	r += (chans + '0');
-
-	return r;
+	//train the vlad 
+	vlad::vlad vladTrain(paths);
 }
+
 
 int main(int argc, const char* argv[]) {
 	fileManager::read_user_set();
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	std::cout << "argument number: " << argc;
 	if (argc < 2) {
 		//std::cout << "please provides the path to UKBench imagesets" << std::endl;
 		///*graphExtendTest();*/
-		covdetTest();
-		return 0;
+		/*covdetTest();*/
+		/*autoTest();*/
+		/*probModel::databaseManager db("E:\\datasets\\gerrard-hall\\gerrard-hall\\database.db");
+		db.testFunction();*/
+		//recurKernelTest();
+		
 	}
 	std::cout << "center number: " << params::centers << std::endl;
 
 	if (argc == 2) {
-		/*std::vector<std::string> paths;
-		fileManager::read_files_in_path(argv[1], paths);
-		vlad::vlad encoder(paths);
-		auto enc = encoder.getEncoder();
-		std::cout << "size is: " << enc.size()<<std::endl;*/
+		
+		/*vladTrain(argv[1]);*/
 		/*UKB::UKFLANNTest(argc, argv, params::sampleSize, params::imgsetSize);*/
-		UKB::UKtrain(argc,argv,1000);
+		/*UKB::UKtrain(argc,argv,1000);*/
+		std::string imgPath = argv[1];
+		vocabReadTest(imgPath);
+		/*databaseTest();*/
+		return 0;
 	}
 	if (argc == 3) {
-		UKB::UKtest(argc, argv, params::sampleSize, params::imgsetSize);
+		/*UKB::UKRecurTest(argc, argv, params::sampleSize, params::imgsetSize);*/
+		/*UKB::UKtest(argc, argv, params::sampleSize, params::imgsetSize);*/
 		//test two imgs
+		recurKernelTestWithImage(argc, argv);
 	}
 	if(argc==4)
 	{
-		graphBuildPlusKernelTest(argc, argv);
+		/*graphBuildPlusKernelTest(argc, argv);*/
 		/*graphbuildTest(argc, argv);*/
+		/*UKB::UKVladTest(argc, argv, params::sampleSize, params::imgsetSize);*/
 		/*UKB::UKVladTest(argc, argv, params::sampleSize, params::imgsetSize);*/
 	}
 	return 0;

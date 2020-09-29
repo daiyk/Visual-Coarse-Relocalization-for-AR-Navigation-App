@@ -13,6 +13,7 @@ extern "C" {
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/extractor.h"
 #include "StaticVRImg/cluster.h"
+#include "StaticVRImg/fileManager.h"
 using namespace std;
 using namespace cv;
 
@@ -26,6 +27,7 @@ const char* keys =
 int main(int argc, const char* argv[]) {
     VL_PRINT("!------- staticVRImg Lib Function Test Program Starts! ------!\n");
     VL_PRINT("!-------Your argument command line ------!\n");
+    fileManager::read_user_set(fileManager::user_set_default);
     for (int i = 1; i < argc; i++) {
         cout << " ->" << argv[i] << endl;
     }
@@ -85,10 +87,9 @@ int main(int argc, const char* argv[]) {
             vlfeatoutImg = imread(trainPaths[0]);
             cv::resize(vlfeatoutImg, vlfeatoutImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
             /*outImg = purImg;*/
+            std::cout << "detected features: " << keypoints.size() << "\n";
             cv::drawKeypoints(vlfeatoutImg, keypoints, vlfeatpurImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-            if (readResult.homo) {
-
-            }
+            
             namedWindow("vlfeat detection Img", WINDOW_NORMAL);
             imshow("vlfeat detection Img", vlfeatpurImg);
             imwrite("Result/vlfeat_detection_Img.jpg", vlfeatpurImg);
@@ -124,6 +125,7 @@ int main(int argc, const char* argv[]) {
             outImg = imread(trainPaths[0]);
             cv::resize(outImg, outImg, cv::Size(), fileManager::parameters::imgScale, fileManager::parameters::imgScale, cv::INTER_AREA);
             /*purImg.copyTo(outImg);*/
+            std::cout << "detected features: " << keypoints.size() << "\n";
             drawKeypoints(outImg, keypoints, purImg, Scalar::all(-1), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
             namedWindow("opencv_feat_detect_Img", WINDOW_NORMAL);
             imshow("opencv_feat_detect_Img", purImg);

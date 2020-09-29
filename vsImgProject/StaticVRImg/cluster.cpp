@@ -31,8 +31,9 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters, int
     int dim = 128;
     size_t numOfpts = allDescrip.rows;
     double energy;
+    vl_set_num_threads(0);
     VlKMeans* km = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
-    vl_kmeans_set_algorithm(km, VlKMeansLloyd);
+    vl_kmeans_set_algorithm(km, VlKMeansANN);
 
     //data row major
     float* data = allDescrip.ptr<float>(0);
@@ -43,7 +44,8 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters, int
     }
     vl_kmeans_init_centers_plus_plus(km, data, dim, numOfpts, centers);
 
-    vl_kmeans_set_num_repetitions(km, 3);
+    vl_kmeans_set_max_num_iterations(km, 100);
+    /*vl_kmeans_set_num_repetitions(km, params::numOfAttemp);*/
 
     /**The relative energy variation is calculated after the $t$ - th update
     ** to the parameters as :
@@ -52,10 +54,12 @@ void cluster::vl_visual_word_compute(cv::Mat& allDescrip, cv::Mat& kCenters, int
     **  set the relative energy variation to the initial minus current energy as the stop criteria
     **  OpenCV uses the absolute variation of pixel corner position for kcenters as stop criteria, while VLFeat is the relative energy variation.
     **/
-    vl_kmeans_set_min_energy_variation(km, params::accuracy);
-    vl_kmeans_set_max_num_iterations(km, params::numOfItera);
-    energy = vl_kmeans_refine_centers(km, data, numOfpts);
+    /*vl_kmeans_set_min_energy_variation(km, params::accuracy);
+    vl_kmeans_set_max_num_iterations(km, params::numOfItera);*/
+    vl_kmeans_refine_centers(km, data, numOfpts);
 
+    //obtain energy
+    energy = vl_kmeans_get_energy(km);
     //obtain kcenters result
     const float* center_ptr = (float*)vl_kmeans_get_centers(km);
 

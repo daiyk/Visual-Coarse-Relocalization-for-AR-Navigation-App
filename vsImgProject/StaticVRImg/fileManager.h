@@ -5,6 +5,7 @@
 #include <vector>
 #include <filesystem>
 #include <opencv2/core.hpp>
+#include <FreeImage.h>
 #define IGRAPH_STATIC 1
 #include "igraph.h"
 #include <nlohmann/json.hpp>
@@ -37,6 +38,7 @@ namespace fileManager {
 	struct parameters {
 
 		/******* all parameters below will be read from json file***********/
+		static std::string userSetPath; //path to the usersetting file path
 		static int octave;       // number of octave used in the sift detection
 		static int noctaveLayer; // scale layers per octave
 		static int firstOctaveInd; // start from 1th octave, which means -1 octave that double the original image size
@@ -46,7 +48,6 @@ namespace fileManager {
 		static int numOfItera;
 		static int descriptDim; //descriptDim default to SIFT 128
 		static double accuracy;
-		static double distRat;
 		static double siftEdgeThres;
 		static double siftPeakThres;
 		static double imgScale;
@@ -83,5 +84,40 @@ namespace fileManager {
 	void write_to_file(std::string name, std::vector<cv::KeyPoint>& kpts, cv::Mat& kCenters);
 	void write_graph(igraph_t& graph, std::string name, std::string mode);
 	void read_user_set(fs::path params= user_set_default);
+
+	struct covisOptions {
+		// Root path to folder which contains the images.
+		std::string image_path = "";
+
+		// list of images that are read from the path. The list must contain the relative path
+		std::vector<std::string> image_list;
+		
+		//dictionary path
+		std::string vocab_path = "";
+
+		//rgb
+		bool rgb = false;
+
+		//database path
+		std::string database_path = "";
+	};
+	/*class imageReader {
+	public:
+		imageReader();
+		imageReader(std::string path);
+	private:
+		typedef std::unique_ptr<FIBITMAP, decltype(&FreeImage_Unload)> FIBitmapPtr;
+		FIBitmapPtr data;
+		int width;
+		int height;
+		int channel;
+	};
+
+	imageReader::imageReader() : data(nullptr, &FreeImage_Unload),width(0),height(0),channel(0) {};
+	imageReader::imageReader(std::string path) {
+
+
+	}*/
 }
+
 #endif // 

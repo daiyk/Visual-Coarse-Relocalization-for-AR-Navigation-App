@@ -6,6 +6,7 @@
 #include <numeric>
 #include <set>
 #include <bitset>
+#include <omp.h>
 #include <unordered_map>
 #include <math.h>
 #include <stdio.h>
@@ -15,9 +16,11 @@
 #include <Eigen/Sparse>
 #include <Eigen/LU>
 #include <Eigen/Eigenvalues>
+
 using namespace std;
 using namespace Eigen;
 using params = fileManager::parameters;
+
 
 /****************************/
 /****************************/
@@ -453,6 +456,57 @@ igraph_matrix_t kernel::robustKernel::robustKernelCom() {
 /***** CLASS COVISMAP ******/
 /****************************/
 /****************************/
+
+bool kernel::covisMap::existEntry(int image_id) {
+    return image_id < invert_index_.size() && !invert_index_[image_id].empty();
+}
+
+boost::dynamic_bitset<uint8_t> kernel::covisMap::getEntry(int image_id) {
+    return invert_index_[image_id];
+}
+
+void kernel::covisMap::addEntry(int image_id, colmap::FeatureVisualIDs& id) {
+    //add id to invert_index
+    if (id.dictsize != this->numCenters_) {
+        std::cerr << "covisMap.addEntry: error: the entry vocab size unmatch the object.\n";
+        return;
+    }
+    if (image_id > invert_index_.size()) {
+        invert_index_.resize(image_id);
+    }
+    invert_index_[image_id].clear();
+    invert_index_[image_id].resize(numCenters_);
+    
+    //loop through the ids and add to the invert index
+    for (Eigen::Index i = 0; i < id.ids.rows(); i++) {
+        invert_index_[image_id].set(id.ids(i, 1));
+    }
+   
+}
+void kernel::covisMap::Query(colmap::FeatureVisualIDs& qryId, std::vector<int>& candids) {
+    //compare with the whole map and find the candidate ids
+    candids.clear();
+    if (qryId.dictsize != numCenters_) {
+        std::cerr << "covisMap.Query: error: query id vocab size doesn't match the object vocab\n";
+        return;
+    }
+    boost::dynamic_bitset<uint8_t> clique(numCenters_);
+    for (Eigen::Index i = 0; i < qryId.ids.rows(); i++) {
+        clique.set(qryId.ids(i, 1));
+    }
+
+    //search on the invert_index_
+    for(int i = 0; i < invert_index_.size(); i++) {
+        //bitset AND keep common words only
+        auto rel = invert_index_[i] & clique;
+        //check the common words threshold
+        if ((float)rel.count() / clique.count() > params::PCommonwords) {
+            candids.push_back(i);
+        }
+    }
+}
+
+
 /*******first the graph class build fully-connected graph and push it to the vector covisMap then build inverted index and cliques from the map******/
 void kernel::covisMap::process(igraph_t& mygraph) {
     //process the graph, build covismap
@@ -462,7 +516,7 @@ void kernel::covisMap::process(igraph_t& mygraph) {
     //special for the first graph
     int ncols = igraph_sparsemat_ncol(&this->map);
     std::cout << "number of cols: " << ncols << std::endl;
-    std::vector<bool> unique_labs(this->kCenters,true);
+    std::vector<bool> unique_labs(this->numCenters_,true);
     //mark label to the corresponding position
     //here we ensure the unique of labels, or we only records whether a label is shown but not its frequency
     for (int i = 0; i < igraph_vector_size(&labs); i++) {
@@ -486,7 +540,7 @@ std::vector<std::vector<int>> kernel::covisMap::retrieve(igraph_t& queryGraph) {
     VANV(&queryGraph, "label", &labs);
 
     //iterate through the labs and retrieve the corresponding graphs/cliques
-    std::vector<bool> unique_labs(this->kCenters,true);
+    std::vector<bool> unique_labs(this->numCenters_,true);
     std::map<int, int> retrieve_stat;
     for (int i = 0; i < igraph_vector_size(&labs); i++) {
         if (unique_labs[VECTOR(labs)[i]]) {
@@ -618,139 +672,539 @@ void kernel::recurRobustKel::graphPrepro(igraph_t& graph) {
     igraph_vector_destroy(&labels);
 }
 
-auto kernel::recurRobustKel::robustKernelCom() {
-    //count label value and construct index corresponding for adjancy matrix
-    int n_graphs = this->graphs.size();
-    int n_labels = this->label_sets.size();
-
-    //build neighborhood label vector
-    //iterate the predefined iteration and compute the kernel values
-    igraph_matrix_t k_matrix;
-    igraph_matrix_init(&k_matrix, n_graphs, n_graphs);
-    igraph_matrix_null(&k_matrix);
-
+void kernel::recurRobustKel::robustKernelCom(int i, int j, kernel::scoreType& kernel_vals, vetIndType& inv1, vetIndType& inv2) {
     //define the pool and 
     //iterate over all stored graphs
     std::vector<std::bitset<30000>> neighbor_vectors_i, neighbor_vectors_j;
-    std::vector< std::unordered_map<int, std::vector<float>> > res_vals;
-    for (int i = 0; i < n_graphs; i++) {
-        //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
-        for (int j = i+1; j < n_graphs; j++) { //j=0 if computed from division by sum of two self-kernel values
-            //build bits neighborhood vector for every nodes of the comparison graphs
-            //set bit operation
-            neighbor_vectors_i.resize(this->ver_nums[i]);
-            neighbor_vectors_j.resize(this->ver_nums[j]);
+    //build bits neighborhood vector for every nodes of the comparison graphs
+    //set bit operation
+    neighbor_vectors_i.resize(this->ver_nums[i]);
+    neighbor_vectors_j.resize(this->ver_nums[j]);
             
-            //extract inverted index as our 
-            auto inv1 = this->inverted_indices[i];
-            auto inv2 = this->inverted_indices[j];
-            std::unordered_map<int, std::vector<float>> kernel_vals;
+    //extract inverted index
+    inv1 = vetIndType(this->inverted_indices[i]);
+    inv2 = vetIndType(this->inverted_indices[j]);
         
-            for (int h = 0; h < h_max; h++) {
-                //records the pairs of same labels and do iterateions
-                if (h == 0) { 
-                    //use first graph to count for the common nodes
-                    for (auto& val : inv1) {
-                        //init neighborhood vector
-                        float tempKel = 0.0;
-                        auto& vers1 = val.second;
-                        //mark the label on the label vector which for h=0 means label itself
-                        for (auto k : vers1) {
-                            neighbor_vectors_i[k].set(val.first, true);
-                            tempKel += 1;
-                        }
+    for (int h = 0; h < h_max; h++) {
+        //records the pairs of same labels and do iterateions
+        if (h == 0) { 
+            //use first graph to count for the common nodes
+            for (auto val : inv1) {
+                //init neighborhood vector
+                auto vers1 = val.second;
+                //mark the label on the label vector which for h=0 means label itself
+                for (auto k : vers1) {
+                    neighbor_vectors_i[k].set(val.first, true);
+                }
                         
-                        if (inv2.count(val.first)) {                      
-                            //add first round kernel values, we use maximum kernel values for a label
-                            kernel_vals.insert({ val.first,std::vector<float>() });
-                            kernel_vals[val.first].push_back(1.0);
-                        }
-                        else
-                        {
-                            inv1.erase(val.first); //erase those keys without matching items
-                        }
+                if (inv2.count(val.first)) {                      
+                    //add first round kernel values, we use maximum kernel values for a label
+                    kernel_vals[val.first].push_back(1.0);
+                }
+                else
+                {
+                    inv1.erase(val.first); //erase those keys without matching items
+                }
+            }
+            for (auto val : inv2) {
+                auto vers2 = val.second;
+                for (auto k : vers2) {
+                    neighbor_vectors_j[k].set(val.first, true);
+                }
+            }
+        }
+
+        //other than 0 round do iterative kernel computing
+        if (h != 0) {
+            //update the neighborhood vector with its neighbors
+            igraph_vector_t nei1_lab;
+            igraph_vector_init(&nei1_lab, 0);
+            auto copy_neighbor_vectors_i = neighbor_vectors_i;
+            auto copy_neighbor_vectors_j = neighbor_vectors_j;
+
+            //update ith graph's neighbor_vector
+            for (auto val : this->inverted_indices[i]) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&this->graphs[i], &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //XOR set neighbor vector
+                        copy_neighbor_vectors_i[vert]|= neighbor_vectors_i[VECTOR(nei1_lab)[k]];
                     }
-                    for (auto val : inv2) {
-                        auto vers2 = val.second;
-                        for (auto k : vers2) {
-                            neighbor_vectors_j[k].set(val.first, true);
+                }
+            }
+            //update jth graph's neighbor_vector
+            for (auto val : this->inverted_indices[j]) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&this->graphs[j], &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //binary OR to set neighbor vector
+                        copy_neighbor_vectors_j[vert] |= neighbor_vectors_j[VECTOR(nei1_lab)[k]];
+                    }
+                }
+            }
+            //update neighbor vectors
+            neighbor_vectors_i = copy_neighbor_vectors_i;
+            neighbor_vectors_j= copy_neighbor_vectors_j;
+            copy_neighbor_vectors_i.clear();
+            copy_neighbor_vectors_j.clear();
+            //compute the kernel value for all common nodes and filter those unimportant matches
+            for (auto val : inv1) {
+                std::set<int> seti, setj;
+                auto ver2 = inv2[val.first];
+
+                //keep track the kernel value from last round
+                int maxkel=kernel_vals[val.first].back();
+                for (auto vert1 : val.second) {
+                    for (auto vert2 : ver2) {
+                        //if the neighbor vector dot product increases then preserve it
+                        int kel = (neighbor_vectors_i[vert1] & neighbor_vectors_j[vert2]).count();
+
+                        //strict condition: kel> kernel_vals[val.first].back(), delete those weight unchanged nodes 
+                        if ( kel >= h + 1)
+                        {
+                            maxkel = kel > maxkel ? kel : maxkel;
+                            seti.insert(vert1);
+                            setj.insert(vert2);
                         }
                     }
                 }
+                //update neighbor vector for both graphs
+                inv1[val.first] = std::vector<size_t>(seti.begin(),seti.end());
+                inv2[val.first] = std::vector<size_t>(setj.begin(), setj.end());
+                kernel_vals[val.first].push_back(maxkel);
+            }
+            igraph_vector_destroy(&nei1_lab);
+        }
+                
+    }
+    neighbor_vectors_i.clear();
+    neighbor_vectors_j.clear();
+}
 
-                //other than 0 round do iterative kernel computing
-                if (h != 0) {
-                    //update the neighborhood vector with its neighbors
-                    igraph_vector_t nei1_lab;
-                    igraph_vector_init(&nei1_lab, 0);
-                    auto copy_neighbor_vectors_i = neighbor_vectors_i;
-                    auto copy_neighbor_vectors_j = neighbor_vectors_j;
+void kernel::recurRobustKel::robustKernelCom(int i, igraph_t& source_graph, scoreType& kernel_vals, vetIndType& inv1, vetIndType& inv2, bool useTFIDF) {
+    /***preprocessing the source graph***/
+    igraph_vector_t labels;
+    igraph_vector_init(&labels, 0);
 
-                    //update ith graph's neighbor_vector
-                    for (auto& val : this->inverted_indices[i]) {
-                        for (auto& vert : val.second) {
-                            igraph_neighbors(&this->graphs[i], &nei1_lab, vert, IGRAPH_ALL);
+    //get the label vecyor
+    VANV(&source_graph, "label", &labels);
 
-                            //update each vertex neighbor vector
-                            for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
-                                //XOR set neighbor vector
-                                copy_neighbor_vectors_i[vert]|= neighbor_vectors_i[VECTOR(nei1_lab)[k]];
-                            }
+    //build inverted indices
+    unordered_map<int, vector<size_t>> source_inverted_index;
+    for (size_t i = 0; i < igraph_vector_size(&labels); i++) {
+        source_inverted_index[VECTOR(labels)[i]].push_back(i);
+    }
+
+    //stores the number of vertices and edges
+    int source_num_vets = igraph_vcount(&source_graph);
+    int source_num_edges = igraph_ecount(&source_graph);
+
+    igraph_vector_destroy(&labels);
+       
+    /**define the pool and 
+    iterate over all stored graphs**/
+    std::vector<std::bitset<30000>> neighbor_vectors_i, neighbor_vectors_j;
+    //build bits neighborhood vector for every nodes of the comparison graphs
+    //set bit operation
+    neighbor_vectors_i.resize(this->ver_nums[i]);
+    neighbor_vectors_j.resize(source_num_vets);
+
+    //extract inverted index
+    inv1.clear();
+    inv2 = vetIndType(source_inverted_index);
+
+    for (int h = 0; h < h_max; h++) {
+        //records the pairs of same labels and do iterateions
+        if (h == 0) {
+            //use first graph to count for the common nodes
+            for (auto &val : this->inverted_indices[i]) {
+                //init neighborhood vector
+                auto vers1 = val.second;
+                //mark the label on the label vector which for h=0 means label itself
+                for (auto k : vers1) {
+                    neighbor_vectors_i[k].set(val.first, true);
+                }
+                //if it is the common nodes
+                if (source_inverted_index.count(val.first)) {
+                    //add first round kernel values, we use maximum kernel values for a label
+                    inv1[val.first] = vers1;
+                    kernel_vals[val.first].push_back(1.0);
+                }
+            }
+            for (auto val : inv2) {
+                auto vers2 = val.second;
+                for (auto k : vers2) {
+                    neighbor_vectors_j[k].set(val.first, true);
+                }
+            }
+        }
+
+        //other than 0 round do iterative kernel computing
+        if (h != 0) {
+            //update the neighborhood vector with its neighbors
+            igraph_vector_t nei1_lab;
+            igraph_vector_init(&nei1_lab, 0);
+            auto copy_neighbor_vectors_i = neighbor_vectors_i;
+            auto copy_neighbor_vectors_j = neighbor_vectors_j;
+
+            //update ith graph's neighbor_vector
+            for (auto val : this->inverted_indices[i]) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&this->graphs[i], &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //OR set neighbor vector
+                        copy_neighbor_vectors_i[vert] |= neighbor_vectors_i[VECTOR(nei1_lab)[k]];
+                    }
+                }
+            }
+            //update jth graph's neighbor_vector
+            for (auto val : source_inverted_index) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&source_graph, &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //binary OR to set neighbor vector
+                        copy_neighbor_vectors_j[vert] |= neighbor_vectors_j[VECTOR(nei1_lab)[k]];
+                    }
+                }
+            }
+            //update neighbor vectors
+            neighbor_vectors_i = copy_neighbor_vectors_i;
+            neighbor_vectors_j = copy_neighbor_vectors_j;
+            copy_neighbor_vectors_i.clear();
+            copy_neighbor_vectors_j.clear();
+            //compute the kernel value for all common nodes and filter those unimportant matches
+            for (auto val : inv1) {
+                std::set<int> seti, setj;
+                auto ver2 = inv2[val.first];
+
+                //keep track the kernel value from last round
+                int maxkel = kernel_vals[val.first].back();
+                for (auto vert1 : val.second) {
+                    for (auto vert2 : ver2) {
+                        //if the neighbor vector dot product increases then preserve it
+                        int kel = (neighbor_vectors_i[vert1] & neighbor_vectors_j[vert2]).count();
+
+                        //strict condition: kel> kernel_vals[val.first].back(), delete those weight unchanged nodes 
+                        if (kel >= h + 1)
+                        {
+                            maxkel = kel > maxkel ? kel : maxkel;
+                            seti.insert(vert1);
+                            setj.insert(vert2);
                         }
                     }
-                    //update jth graph's neighbor_vector
-                    for (auto& val : this->inverted_indices[j]) {
-                        for (auto& vert : val.second) {
-                            igraph_neighbors(&this->graphs[j], &nei1_lab, vert, IGRAPH_ALL);
+                }
+                //update neighbor vector for both graphs
+                inv1[val.first] = std::vector<size_t>(seti.begin(), seti.end());
+                inv2[val.first] = std::vector<size_t>(setj.begin(), setj.end());
+                kernel_vals[val.first].push_back(maxkel);
+            }
+            igraph_vector_destroy(&nei1_lab);
+        }
 
-                            //update each vertex neighbor vector
-                            for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
-                                //binary OR to set neighbor vector
-                                copy_neighbor_vectors_j[vert] |= neighbor_vectors_j[VECTOR(nei1_lab)[k]];
-                            }
+    }
+    neighbor_vectors_i.clear();
+    neighbor_vectors_j.clear();
+}
+
+void kernel::recurRobustKel::robustKernelCom(igraph_t& query_graph, igraph_t& source_graph, scoreType& kernel_vals, vetIndType& inv1, vetIndType& inv2, bool useTFIDF) {
+    /***preprocessing the source graph***/
+    igraph_vector_t labels, query_labels;
+    igraph_vector_init(&labels, 0);
+    igraph_vector_init(&query_labels, 0);
+
+    //get the label vecyor
+    VANV(&source_graph, "label", &labels);
+    VANV(&query_graph, "label", &query_labels);
+
+    //build inverted indices
+    unordered_map<int, vector<size_t>> source_inverted_index, query_inverted_index;
+    for (size_t i = 0; i < igraph_vector_size(&labels); i++) {
+        source_inverted_index[VECTOR(labels)[i]].push_back(i);
+    }
+    for (size_t i = 0; i < igraph_vector_size(&query_labels); i++) {
+        query_inverted_index[VECTOR(query_labels)[i]].push_back(i);
+    }
+    
+
+    //set up a intermediate graph for recording the kernel process
+    igraph_t query_graph_record, source_graph_record;
+    igraph_empty(&query_graph_record,0,IGRAPH_UNDIRECTED);
+    igraph_empty(&source_graph_record, 0, IGRAPH_UNDIRECTED);
+
+    //records all pairs of nodes
+    std::map<int, int> nodeMapQuery, nodeMapSource;
+
+    //stores the number of vertices and edges
+    int source_num_vets = igraph_vcount(&source_graph);
+    int source_num_edges = igraph_ecount(&source_graph);
+
+    int query_num_vets = igraph_vcount(&query_graph);
+    int query_num_edges = igraph_ecount(&query_graph);
+
+    igraph_vector_destroy(&labels);
+    igraph_vector_destroy(&query_labels);
+
+    /**define the pool and
+    iterate over all stored graphs**/
+    std::vector<std::bitset<30000>> neighbor_vectors_i, neighbor_vectors_j;
+    //build bits neighborhood vector for every nodes of the comparison graphs
+    //set bit operation
+    neighbor_vectors_i.resize(query_num_vets);
+    neighbor_vectors_j.resize(source_num_vets);
+
+    //extract inverted index
+    inv1.clear();
+    inv2 = vetIndType(source_inverted_index);
+
+    for (int h = 0; h < h_max; h++) {
+        //records the pairs of same labels and do iterateions
+        if (h == 0) {
+            //use first graph to count for the common nodes
+            for (auto& val : query_inverted_index) {
+                //init neighborhood vector
+                std::vector<size_t> vers1 = val.second;
+                //if it is the common nodes
+                if (source_inverted_index.count(val.first)) {
+                    //add first round kernel values, we use maximum kernel values for a label
+                    inv1[val.first] = vers1;
+                    kernel_vals[val.first].push_back(1.0);
+
+                    //add to both graphs
+                    int query_vcount = igraph_vcount(&query_graph_record);
+                    igraph_add_vertices(&query_graph_record, val.second.size(),0);
+                    for (int k = 0; k < val.second.size(); k++) {
+                        SETVAN(&query_graph_record, "posx", query_vcount +k, VAN(&query_graph, "posx", val.second[k]));
+                        SETVAN(&query_graph_record, "posy", query_vcount + k, VAN(&query_graph, "posy", val.second[k]));
+                        SETVAN(&query_graph_record, "label", query_vcount + k, VAN(&query_graph, "label", val.second[k]));
+                        SETVAN(&query_graph_record, "h", query_vcount + k, h);
+                        nodeMapQuery.insert({ val.second[k] , query_vcount + k });
+                    }
+                    auto vers2 = source_inverted_index.at(val.first);
+                    int source_vcount = igraph_vcount(&source_graph_record);
+                    igraph_add_vertices(&source_graph_record, vers2.size(), 0);
+                    for (int k = 0; k < vers2.size(); k++) {
+                        SETVAN(&source_graph_record, "posx", source_vcount + k, VAN(&source_graph, "posx", vers2[k]));
+                        SETVAN(&source_graph_record, "posy", source_vcount + k, VAN(&source_graph, "posy", vers2[k]));
+                        SETVAN(&source_graph_record, "label", source_vcount + k, VAN(&source_graph, "label", vers2[k]));
+                        SETVAN(&source_graph_record, "h", source_vcount + k, h);
+                        nodeMapSource.insert({ vers2[k] , source_vcount + k });
+                    }
+                }
+                //mark the label on the label vector which for h=0 means label itself 
+                for (int k = 0; k < vers1.size(); k++) {
+                    neighbor_vectors_i[vers1[k]].set(val.first, true);
+                }
+
+
+            }
+            for (auto val : inv2) {
+                auto vers2 = val.second;
+                for (auto k : vers2) {
+                    neighbor_vectors_j[k].set(val.first, true);
+                }
+            }
+        }
+
+        //other than 0 round do iterative kernel computing
+        if (h != 0) {
+            //update the neighborhood vector with its neighbors
+            igraph_vector_t nei1_lab;
+            igraph_vector_init(&nei1_lab, 0);
+            auto copy_neighbor_vectors_i = neighbor_vectors_i;
+            auto copy_neighbor_vectors_j = neighbor_vectors_j;
+
+            //update ith graph's neighbor_vector
+            for (auto val : query_inverted_index) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&query_graph, &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //XOR set neighbor vector
+                        copy_neighbor_vectors_i[vert] |= neighbor_vectors_i[VECTOR(nei1_lab)[k]];
+                    }
+                }
+            }
+            //update jth graph's neighbor_vector
+            for (auto val : source_inverted_index) {
+                for (auto vert : val.second) {
+                    igraph_neighbors(&source_graph, &nei1_lab, vert, IGRAPH_ALL);
+
+                    //update each vertex neighbor vector
+                    for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                        //binary OR to set neighbor vector
+                        copy_neighbor_vectors_j[vert] |= neighbor_vectors_j[VECTOR(nei1_lab)[k]];
+                    }
+                }
+            }
+            //update neighbor vectors
+            neighbor_vectors_i = copy_neighbor_vectors_i;
+            neighbor_vectors_j = copy_neighbor_vectors_j;
+            copy_neighbor_vectors_i.clear();
+            copy_neighbor_vectors_j.clear();
+            //compute the kernel value for all common nodes and filter those unimportant matches
+            for (auto val : inv1) {
+                std::set<int> seti, setj;
+                auto ver2 = inv2[val.first];
+
+                //keep track the kernel value from last round
+                int maxkel = kernel_vals[val.first].back();
+                for (auto vert1 : val.second) {
+                    for (auto vert2 : ver2) {
+                        //if the neighbor vector dot product increases then preserve it
+                        int kel = (neighbor_vectors_i[vert1] & neighbor_vectors_j[vert2]).count();
+
+                        //strict condition: kel> kernel_vals[val.first].back(), delete those weight unchanged nodes 
+                        if (kel >= h + 1)
+                        {
+                            maxkel = kel > maxkel ? kel : maxkel;
+                            seti.insert(vert1);
+                            setj.insert(vert2);
+                        }
+                        //exclude the vertex that is not qualified and set them to different color
+                        else {
+                            SETVAN(&query_graph_record, "h", nodeMapQuery[vert1], 10.0);
+                            SETVAN(&source_graph_record, "h", nodeMapSource[vert2], 10.0);
                         }
                     }
-                    //update neighbor vectors
-                    neighbor_vectors_i = copy_neighbor_vectors_i;
-                    neighbor_vectors_j= copy_neighbor_vectors_j;
-                    copy_neighbor_vectors_i.clear();
-                    copy_neighbor_vectors_j.clear();
-                    //compute the kernel value for all common nodes and filter those unimportant matches
-                    for (auto& val : inv1) {
-                        std::set<int> seti, setj;
-                        auto ver2 = inv2[val.first];
-                        int maxkel=0;
-                        for (auto vert1 : val.second) {
-                            for (auto vert2 : ver2) {
-                                //if the neighbor vector dot product increases then preserve it
-                                int kel = (neighbor_vectors_i[vert1] & neighbor_vectors_j[vert2]).count();
-                                if ( kel >= h + 1)
-                                {
-                                    maxkel = kel > maxkel ? kel : maxkel;
-                                    seti.insert(vert1);
-                                    setj.insert(vert2);
-                                }
-                            }
-                        }
-                        //update neighbor vector for both graphs
-                        inv1[val.first] = std::vector<size_t>(seti.begin(),seti.end());
-                        inv2[val.first] = std::vector<size_t>(setj.begin(), setj.end());
-                        kernel_vals[val.first].push_back(maxkel);
+                }
+                //update neighbor vector for both graphs
+                inv1[val.first] = std::vector<size_t>(seti.begin(), seti.end());
+                inv2[val.first] = std::vector<size_t>(setj.begin(), setj.end());
+                kernel_vals[val.first].push_back(maxkel);
+            }
+            igraph_vector_destroy(&nei1_lab);
+
+            //update the record graph with neighborhoolds
+            for (const auto& keyVals : nodeMapQuery) {
+                igraph_vector_t nei1_lab;
+                igraph_vector_init(&nei1_lab, 0);
+                igraph_neighbors(&query_graph, &nei1_lab, keyVals.first, IGRAPH_ALL);
+
+                //add neighbors to both graphs
+
+                for (int k = 0; k < igraph_vector_size(&nei1_lab); k++) {
+                    if (!nodeMapQuery.count(VECTOR(nei1_lab)[k])) {
+                        //add edge and add vertex
+                        int query_vcount = igraph_vcount(&query_graph_record);
+                        igraph_add_vertices(&query_graph_record, 1, 0);
+                        igraph_add_edge(&query_graph_record, keyVals.second, query_vcount);
+                        SETVAN(&query_graph_record, "posx", query_vcount, VAN(&query_graph, "posx", VECTOR(nei1_lab)[k]));
+                        SETVAN(&query_graph_record, "posy", query_vcount, VAN(&query_graph, "posy", VECTOR(nei1_lab)[k]));
+                        SETVAN(&query_graph_record, "label", query_vcount, VAN(&query_graph, "label", VECTOR(nei1_lab)[k]));
+                        SETVAN(&query_graph_record, "h", query_vcount, h);
+                        nodeMapQuery.insert({ VECTOR(nei1_lab)[k] , query_vcount });
                     }
-                    igraph_vector_destroy(&nei1_lab);
+                    else {
+                        igraph_add_edge(&query_graph_record, keyVals.second, nodeMapQuery.at(VECTOR(nei1_lab)[k]));
+                    }
+                }
+            }
+            for (const auto& keyVals : nodeMapSource) {
+                //second graphs add neighborhood
+                igraph_vector_t nei2_lab;
+                igraph_vector_init(&nei2_lab, 0);
+                igraph_neighbors(&source_graph, &nei2_lab, keyVals.first, IGRAPH_ALL);
+                
+                for (int k = 0; k < igraph_vector_size(&nei2_lab); k++) { 
+                    if (!nodeMapSource.count(VECTOR(nei2_lab)[k])) {
+                        int source_vcount = igraph_vcount(&source_graph_record);
+                        igraph_add_vertices(&source_graph_record, 1, 0);
+                        igraph_add_edge(&source_graph_record, keyVals.second, source_vcount);
+                        SETVAN(&source_graph_record, "posx", source_vcount, VAN(&source_graph, "posx", VECTOR(nei2_lab)[k]));
+                        SETVAN(&source_graph_record, "posy", source_vcount, VAN(&source_graph, "posy", VECTOR(nei2_lab)[k]));
+                        SETVAN(&source_graph_record, "label", source_vcount, VAN(&source_graph, "label", VECTOR(nei2_lab)[k]));
+                        SETVAN(&source_graph_record, "h", source_vcount, h);
+                        nodeMapSource.insert({ VECTOR(nei2_lab)[k] , source_vcount });
+                    }
+                    else {
+                        igraph_add_edge(&source_graph_record, keyVals.second, nodeMapSource[VECTOR(nei2_lab)[k]]);
+                    }
                 }
                 
             }
-            neighbor_vectors_i.clear();
-            neighbor_vectors_j.clear();
-            res_vals.push_back(kernel_vals);
         }
+
     }
-    
-    
-    return res_vals;
+    igraph_simplify(&source_graph_record, 0, 1, 0);
+    igraph_simplify(&query_graph_record, 0, 1, 0);
+    fileManager::write_graph(source_graph_record, "source_graph","graphml");
+    fileManager::write_graph(query_graph_record, "query_graph", "graphml");
+    neighbor_vectors_i.clear();
+    neighbor_vectors_j.clear();
 }
 
+std::vector<std::vector<float>> kernel::recurRobustKel::robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int>& source_indexes) {
+    //count label value and construct index corresponding for adjancy matrix
+    /*std::set<int> label_sets;*/
+    int n_query_graphs = this->graphs.size();
+    int n_database_graphs = database_graphs.size();
+
+    //preprocessing database graphs
+    //!!!DIDN"T PROCESS LABELSET TO COMPUTE THE TOTAL UNIQUE LABELS
+    /*for (int i = 0; i < database_graphs.size(); i++) {
+        this->push_back(database_graphs[i]);
+    }*/
+
+    std::vector<std::vector<float>> k_matrix(n_query_graphs, std::vector<float>(n_database_graphs, 0.0));
+    //raw score only used for debugging
+    omp_set_num_threads(6);
+    //iterate to compute each query image to database image values
+     //iterate over all stored graphs
+    #pragma omp parallel
+    {
+        #pragma omp for schedule(dynamic)
+        for (int i = 0; i < n_query_graphs; i++) {
+            //start from i to avoid multicount the values?? but set to start from 0 makes the computation happens twice for (i,j) and (j,i)
+            /*for (int j = n_query_graphs; j < n_query_graphs + n_database_graphs; j++) {*/ //j=0 if computed from division by sum of two self-kernel values
+            for (int j = 0; j < n_database_graphs; j++) {
+                scoreType scores;
+                vetIndType vet1, vet2;
+                /*robustKernelCom(i, j, scores, vet1, vet2);*/
+                robustKernelCom(i, database_graphs[j], scores, vet1, vet2);
+                //simple compute the total score
+                for (auto& val : scores) {
+                    //start of score matrix 0 is n_query_graphs in inverted_index vector
+                    if (!tfidf.empty())
+                    {
+                        k_matrix[i][j] += val.second.back()*this->tfidf.at<float>(source_indexes[j],val.first);
+                    }
+                    else
+                    {
+                        k_matrix[i][j] += val.second.back();
+                    }
+                }
+            }
+        }
+    }
+
+    //clear the database graph information and only keeps the query graphs information
+    /*clearDatabaseGraphs(n_query_graphs);*/
+    return k_matrix;
+}
+
+void kernel::recurRobustKel::clearDatabaseGraphs(int n_query_graphs) {
+    int totalSize = this->graphs.size();
+    if(totalSize<n_query_graphs){
+        std::cout << "ERROR: cleargraph function cannot handle query graphs less bigger than total size.";
+        return;
+    }
+    this->edge_nums.resize(n_query_graphs);
+    this->ver_nums.resize(n_query_graphs);
+    this->inverted_indices.resize(n_query_graphs);
+    for (int i = n_query_graphs; i < totalSize; i++) {
+        igraph_destroy(&this->graphs[i]);
+    }
+    this->graphs.resize(n_query_graphs);
+}
 
 
 double kernel::recurRobustKel::robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind) {

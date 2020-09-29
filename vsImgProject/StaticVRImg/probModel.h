@@ -3,8 +3,20 @@
 #define _PROBMODEL_H
 #include <vector>
 #include <opencv2/core.hpp>
+#include <colmap/base/database.h>
 namespace probModel {
+	class databaseManager {
+	public:
+		databaseManager(std::string path);
+		~databaseManager() { database.Close();};
+
+		void testFunction();
+	private:
+		colmap::Database database;
+
+	};
 	void processSampleLocation();
+
 	//probably we only need idf instead of tf-idf, or only includes tf when we consider classification with category,
 	//and each category with several images
 	class tfidf {

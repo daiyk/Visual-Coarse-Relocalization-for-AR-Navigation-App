@@ -9,6 +9,7 @@
 #include "extractor.h"
 #include "fileManager.h"
 #include "cluster.h"
+#include "helper.h"
 
 extern "C" {
     #include "vl/kdtree.h"
@@ -18,21 +19,34 @@ using params = fileManager::parameters;
 using namespace cv;
 namespace fs = std::filesystem;
 
-matcher::kdTree::kdTree(Mat& source) {
+matcher::kdTree::kdTree(Mat source) {
     if (!source.isContinuous())
     {
         throw std::runtime_error("ERROR: source descriptors are not continuous, kdTree initializer terminated");
     }
+    if (source.rows == 0) {
+        throw std::runtime_error("Error: source mat is empty");
+    }
+
+    source.copyTo(this->vocab);
     //kd-tree building
     int dim = params::descriptDim;
-    int numOfTree = 1;
+    int numOfTree = 4;
+    this->numOfNN = params::numOfNN;
     this->tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
     
     //start building tree build from the first image
-    numWords = source.rows;
-
+    this->vocab_size_ = source.rows;
+    
+    //check the types of source mat
+    auto types = helper::cvtype2str(source.type());
+    
+    if (types.substr(0, 1) != "3") {
+        //if it is uchar than transform it to float
+        this->vocab.convertTo(this->vocab, CV_32F);
+    }
     //build kd-tree
-    vl_kdforest_build(this->tree, numWords, source.ptr<float>(0));
+    vl_kdforest_build(this->tree, vocab_size_, this->vocab.ptr<float>(0));
 
     //set searcher
     vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
@@ -45,6 +59,42 @@ matcher::kdTree::~kdTree() {
 
 std::vector<DMatch> matcher::kdTree::search(Mat& query) {
     std::vector<DMatch> matches;
+    if (query.rows == 0 || !tree) {
+        return matches;
+    }
+    if (!query.isContinuous())
+    {
+        throw std::runtime_error("ERROR: source descriptors or query descriptor are not continuous, matching function terminated");
+    }
+    //number of query descripts
+    int numQuery = query.rows;
+
+    //set search result container
+    std::vector<vl_uint32> NNs(numOfNN * numQuery);
+    std::vector<float> NNdist(numOfNN * numQuery);
+
+    /*vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
+    float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);*/
+
+    int numOfleaf = vl_kdforest_query_with_array(this->tree, NNs.data(), numOfNN, numQuery, NNdist.data(), query.ptr<float>(0));
+
+    //build Dmatches and check the distance ratio to avoid false matching
+    for (int i = 0; i < numQuery; i++)
+    {
+        //compare the first and second nn distance
+        double one2TwoNN = NNdist[numOfNN * i] / NNdist[numOfNN * i + 1];
+        if (one2TwoNN <= params::MATCH_THRES) { //use distance ratio to filter the matching keypoints
+            DMatch match = DMatch(i, NNs[numOfNN * i], NNdist[numOfNN * i]);
+            matches.push_back(match);
+        }
+    }
+    return matches;
+}
+std::vector<cv::DMatch> matcher::kdTree::colmapSearch(cv::Mat& query) {
+    std::vector<DMatch> matches;
+    Mat query_transform;
+    query.convertTo(query_transform, CV_32F);
+
     if (query.rows == 0) {
         return matches;
     }
@@ -56,23 +106,42 @@ std::vector<DMatch> matcher::kdTree::search(Mat& query) {
     int numQuery = query.rows;
 
     //set search result container
-    std::vector<vl_uint32> NNs(params::numOfNN * numQuery);
-    std::vector<float> NNdist(params::numOfNN * numQuery);
+    std::vector<vl_uint32> NNs(this->numOfNN * numQuery);
+    std::vector<float> NNdist(this->numOfNN * numQuery);
 
-    /*vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
-    float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);*/
-
-    int numOfleaf = vl_kdforest_query_with_array(this->tree, NNs.data(), params::numOfNN, numQuery, NNdist.data(), query.ptr<float>(0));
+    int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), this->numOfNN, numQuery, NNdist.data(), query_transform.ptr<float>(0));
 
     //build Dmatches and check the distance ratio to avoid false matching
+    cv::Mat nearestDist(numQuery, 2, CV_32F, Scalar(0));
+    cv::Mat nearestInd(numQuery, 2, CV_32S, Scalar(-1));
+    const float kDistNorm = 1.f / (512.f * 512.f);
     for (int i = 0; i < numQuery; i++)
     {
-        //compare the first and second nn distance
-        double one2TwoNN = NNdist[params::numOfNN * i] / NNdist[params::numOfNN * i + 1];
-        if (one2TwoNN <= params::MATCH_THRES) { //use distance ratio to filter the matching keypoints
-            DMatch match = DMatch(i, NNs[params::numOfNN * i], NNdist[params::numOfNN * i]);
-            matches.push_back(match);
+        for (int j = 0; j < this->numOfNN; j++) {
+            //compute and stores the distance
+            float distance = query_transform.row(i).dot(this->vocab.row(NNs[this->numOfNN * i + j]));
+            if (distance > nearestDist.at<float>(i, 0)) {
+                nearestDist.at<float>(i, 0) = distance;
+                nearestInd.at<int>(i, 0) = NNs[this->numOfNN * i + j];
+                continue;
+            }
+            if (distance > nearestDist.at<float>(i, 1)) {
+                nearestDist.at<float>(i, 1) = distance;
+                nearestInd.at<int>(i, 1) = NNs[this->numOfNN * i + j];
+            }
         }
+        if (nearestInd.at<int>(i, 0) == -1) {
+            continue;
+        }
+        nearestDist.at<float>(i, 0) = std::acos(std::min(kDistNorm * nearestDist.at<float>(i, 0), 1.f));
+        nearestDist.at<float>(i, 1) = std::acos(std::min(kDistNorm * nearestDist.at<float>(i, 1), 1.f));
+
+        //do ratio test because it is acos thus need to choose the smaller one
+        if (nearestDist.at<float>(i, 0) >= params::MATCH_THRES * nearestDist.at<float>(i, 1)) {
+            continue;
+        }
+        DMatch match = DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
+        matches.push_back(match);
     }
     return matches;
 }
@@ -145,6 +214,7 @@ std::vector<cv::DMatch> matcher::opencvFlannMatcher(cv::Mat& source, cv::Mat& qu
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
     std::vector< std::vector<DMatch> > knn_matches;
     matcher->knnMatch(query, source, knn_matches, 2);
+
     //-- Filter matches using the Lowe's ratio test
     const float ratio_thresh = params::MATCH_THRES;
     std::vector<DMatch> good_matches;
@@ -172,4 +242,84 @@ void matcher::RANSC(cv::Mat& sourceDescrips, std::vector<cv::KeyPoint> &sourcekp
     homo = cv::findHomography(matchkpts1, matchkpts2, mask, cv::RANSAC);
 }
 
+std::vector<cv::DMatch> matcher::colmapFlannMatcher(const Mat& query_descriptors, const Mat& database_descriptors, int NNeighbors) {
+    Mat indices_1to2, distance;
+    distance.resize(query_descriptors.rows);
+    std::vector<DMatch> matches;
+    if (query_descriptors.rows == 0 || database_descriptors.rows == 0) {
+        return matches;
+    }
+
+    if (!database_descriptors.isContinuous())
+    {
+        throw std::runtime_error("ERROR: source descriptors are not continuous, kdTree initializer terminated");
+    }
+    //kd-tree building
+    int dim = params::descriptDim;
+    int numOfTree = 4;
+    auto tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
+    //start building tree build from the database 
+    int numWords = database_descriptors.rows;
+    Mat db_transform, query_transform;
+    database_descriptors.convertTo(db_transform, CV_32F);
+    query_descriptors.convertTo(query_transform, CV_32F);
+    
+    //build kd-tree
+    vl_kdforest_build(tree, numWords, db_transform.ptr<float>(0));
+
+    //set searcher
+    vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
+    vl_kdforest_set_max_num_comparisons(tree, params::maxNumComp); // set max num of comparison
+
+    
+    if (query_descriptors.rows == 0) {
+        return matches;
+    }
+    if (!query_descriptors.isContinuous())
+    {
+        throw std::runtime_error("ERROR: source descriptors or query descriptor are not continuous, matching function terminated");
+    }
+    //number of query descripts
+    int numQuery = query_descriptors.rows;
+
+    //set search result container
+    std::vector<vl_uint32> NNs(NNeighbors * numQuery);
+    std::vector<float> NNdist(NNeighbors * numQuery);
+
+    int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), NNeighbors, numQuery, NNdist.data(), query_transform.ptr<float>(0));
+
+    //build Dmatches and check the distance ratio to avoid false matching
+    cv::Mat nearestDist(numQuery, 2, CV_32F, Scalar(0));
+    cv::Mat nearestInd(numQuery, 2, CV_32S, Scalar(-1));
+    const float kDistNorm = 1.f / (512.f * 512.f);
+    for (int i = 0; i < numQuery; i++)
+    {
+        for (int j = 0; j < NNeighbors; j++) {
+            //compute and stores the distance
+            float distance = query_transform.row(i).dot(db_transform.row(NNs[NNeighbors * i + j]));
+            if (distance > nearestDist.at<float>(i, 0)) {
+                nearestDist.at<float>(i, 0) = distance;
+                nearestInd.at<int>(i, 0) = NNs[NNeighbors * i + j];
+                continue;
+            }
+            if (distance > nearestDist.at<float>(i, 1)) {
+                nearestDist.at<float>(i, 1) = distance;
+                nearestInd.at<int>(i, 1) = NNs[NNeighbors * i + j];
+            }
+        }
+        if (nearestInd.at<int>(i, 0) == -1) {
+            continue;
+        }
+        nearestDist.at<float>(i, 0) = std::acos(std::min(kDistNorm * nearestDist.at<float>(i, 0), 1.f));
+        nearestDist.at<float>(i, 1) = std::acos(std::min(kDistNorm * nearestDist.at<float>(i, 1), 1.f));
+
+        //do ratio test because it is acos thus need to choose the smaller one
+        if (nearestDist.at<float>(i, 0) >= params::MATCH_THRES * nearestDist.at<float>(i, 1)) {
+            continue;
+        }
+        DMatch match = DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
+        matches.push_back(match);
+    }
+    return matches;
+}
 

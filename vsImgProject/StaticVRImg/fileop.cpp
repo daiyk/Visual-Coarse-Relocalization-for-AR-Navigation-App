@@ -15,6 +15,7 @@ using namespace std;
 fs::path fileManager::user_set_default = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json";
 
 //parameters definitions
+string fileManager::parameters::userSetPath = ""; //need to read this from the user set file
 int fileManager::parameters::octave = -1; //default to -1 to compute every possible octave: log2(min(width,height))
 int fileManager::parameters::noctaveLayer = 3; // scale layers per octave
 int fileManager::parameters::firstOctaveInd = -1; // learning start from 1th octave, -1 for more details
@@ -24,7 +25,7 @@ int fileManager::parameters::numOfAttemp = 5; //times of try to compute the cent
 int fileManager::parameters::numOfItera = 20; 
 int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
-double fileManager::parameters::siftEdgeThres = 10; // sift paper setting
+double fileManager::parameters::siftEdgeThres = 10.0; // sift paper setting
 double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
 double fileManager::parameters::imgScale = 1.0; // image scaling during detection and drawing
 int fileManager::parameters::maxNumOrient = 4; // max number orientation extracted by vlfeat covdet feature detector, default 4 for SIFT
@@ -32,12 +33,12 @@ int fileManager::parameters::maxNumFeatures = -1;// max number of features allow
 string fileManager::parameters::tfidfPath = ""; // path to the tfidf file 
 //OpenCV relevent setting
 TermCriteria fileManager::parameters::criteria = TermCriteria(TermCriteria::COUNT | TermCriteria::EPS, numOfItera, accuracy); //stop criteria, COUNT means number of iter, EPS means convergence accuracy
-float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
+
 
 //matching setting
 int fileManager::parameters::maxNumComp = 200; //sift paper setting
 int fileManager::parameters::numOfNN = 2; //sift paper setting
-double fileManager::parameters::distRat = 0.8; // sift paper setting for threshold
+float fileManager::parameters::MATCH_THRES = 0.7; //define the threshold for matching 
 
 //vlad setting
 int fileManager::parameters::vladCenters = 16; //default vlad centers
@@ -75,7 +76,7 @@ void fileManager::read_files_in_path(std::string path, std::vector<std::string> 
                 cout << "Files in Path: img is added with: " << entry.path().string() << "......" << endl;
             }
             else {
-                cout << "File in path: img " + entry.path().string() + ": Extension " + extension + " is not supported dismiss the image." << endl;
+                cout << "File in path: img " + entry.path().string() + ": Extension " + extension + " is not supported ignore the file." << endl;
             }
         }
     }
@@ -319,6 +320,7 @@ void fileManager::read_user_set(fs::path params) {
     }
     //check the status, throw exception for error
     f >> jsonlist;
+    fileManager::parameters::userSetPath = jsonlist.value("userSetPath", fileManager::parameters::userSetPath);
     fileManager::parameters::octave = jsonlist.value("octave", fileManager::parameters::octave);
     fileManager::parameters::noctaveLayer = jsonlist.value("noctaveLayer", fileManager::parameters::noctaveLayer);
     fileManager::parameters::firstOctaveInd = jsonlist.value("firstOctaveInd", fileManager::parameters::firstOctaveInd);
@@ -336,7 +338,7 @@ void fileManager::read_user_set(fs::path params) {
     }
     fileManager::parameters::imgScale = jsonlist.value("imgScale", fileManager::parameters::imgScale);
     fileManager::parameters::siftEdgeThres = jsonlist.value("siftEdgeThres", fileManager::parameters::siftEdgeThres);
-    fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", fileManager::parameters::siftPeakThres);
+    fileManager::parameters::siftPeakThres = jsonlist.value("siftPeakThres", 0.02/fileManager::parameters::noctaveLayer);
     fileManager::parameters::vladCenters = jsonlist.value("vladCenters", fileManager::parameters::vladCenters);
     fileManager::parameters::sampleSize = jsonlist.value("sampleSize", fileManager::parameters::sampleSize);
     fileManager::parameters::imgsetSize = jsonlist.value("imgsetSize", fileManager::parameters::imgsetSize);

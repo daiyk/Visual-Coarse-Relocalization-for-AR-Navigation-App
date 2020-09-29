@@ -201,7 +201,7 @@ void vlad::vlad::enc_index(Mat1f& query, std::vector<int> &ind, std::vector<doub
     for (int j = 0; j < scores[i].size(); j++) {
         std::cout << scores[i][j] << " ";
     }*/
-
+    //scores represents the distance, thus need to rank it from small to large
     std::iota(score_index.begin(), score_index.end(), 0);
     std::sort(score_index.begin(), score_index.end(), [&](size_t left, size_t right) {return scores[left] < scores[right]; });
 

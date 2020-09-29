@@ -36,7 +36,7 @@ namespace UKB {
 	};
 
 	
-
+	void UKRecurTest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 	void UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 	void UKVladTest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 	void UKtrain(int argc, const char* argv[], int numOfTrain);

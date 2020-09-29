@@ -18,16 +18,23 @@ namespace matcher {
 
 	class kdTree {
 		public:
-			kdTree(cv::Mat& source);
+			kdTree(cv::Mat source);
 			~kdTree();
 			std::vector<cv::DMatch> search(cv::Mat& query);
-			size_t size() { return numWords; }
+			std::vector<cv::DMatch> colmapSearch(cv::Mat& query);
+			cv::Mat getVocab() { return vocab; }
+			size_t numWords() { return vocab_size_; }
+			void setNN(int NN) { this->numOfNN = NN; }
 			static matchOut kdTreeDemo(std::string& img1, std::string& img2, bool display = true);
 		private:
 			VlKDForest* tree=nullptr;
-			size_t numWords;
+			size_t vocab_size_;
+			int numOfNN;
+			cv::Mat vocab;
 	};
-	
+
+	std::vector<cv::DMatch> colmapFlannMatcher(const cv::Mat& query_descriptors, const cv::Mat& database_descriptors, int NNeighbors);
+
 	std::vector<cv::DMatch> opencvFlannMatcher(cv::Mat& source, cv::Mat& query);
 	void RANSC(cv::Mat& sourceDescrips, std::vector<cv::KeyPoint>& sourcekpts, cv::Mat& queryDescrips, std::vector<cv::KeyPoint>& querykpts, cv::Mat &mask, cv::Mat &homo);
 }

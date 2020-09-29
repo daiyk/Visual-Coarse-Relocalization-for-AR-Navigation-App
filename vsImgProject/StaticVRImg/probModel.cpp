@@ -1,7 +1,22 @@
 #include "probModel.h"
 #include <iostream>
+
 using namespace cv;
 using namespace std;
+
+
+probModel::databaseManager::databaseManager(std::string path) {
+	database.Open(path);
+}
+void probModel::databaseManager::testFunction() {
+	auto images = this->database.ReadAllImages();
+	//print out all images names and image id
+	for (int i = 0; i < images.size(); i++)
+	{
+		std::cout << images[i].ImageId() << "  " << images[i].Name() << std::endl;
+	}
+}
+
 void probModel::processSampleLocation() {
 
 }

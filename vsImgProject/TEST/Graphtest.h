@@ -157,11 +157,11 @@ inline void covisMapTest() {
 	igraph_vector_t G123posx, G123posy;
 	igraph_vector_init(&G123posx, 0);
 	igraph_vector_init(&G123posy, 0);
-	graph::extend(testGraph, testGraph2, bestMatches12);
+	graph::extendDemo(testGraph, testGraph2, bestMatches12);
 	fileManager::write_graph(testGraph, "covisTestG12", "graphml");
-	graph::extend(testGraph, testGraph3,bestMatches13);
+	graph::extendDemo(testGraph, testGraph3,bestMatches13);
 	fileManager::write_graph(testGraph, "covisTestG123", "graphml");
-	graph::extend(testGraph2, testGraph3, bestMatches23);
+	graph::extendDemo(testGraph2, testGraph3, bestMatches23);
 	fileManager::write_graph(testGraph2, "covisTestG23", "graphml");
 }
 inline void graphExtendTest() {

@@ -29,6 +29,10 @@ void graph::graphTest() {
 	igraph_destroy(&graph);
 }
 
+//build graph without any edge
+//1th arg: macthes of visual words to features
+//2th arg: all keypoints with opencv format
+//3th arg: reference to non-initial igraph, final graph will be stored here
 bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph) {
 	igraph_init::attri_init();
 	igraph_integer_t n_vertices = matches.size();
@@ -90,19 +94,25 @@ bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts
 	return true;
 }
 
-//build full graph and return it
+//build full graph
+//NOTE: build full only keeps label attribute
+//1th arg: macthes of visual words to features
+//2th arg: all keypoints with opencv format
+//3th arg: reference to non-initial igraph, final graph will be stored here
 bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph) {
 	igraph_init::attri_init();
 	igraph_integer_t n_vertices = matches.size();
 	igraph_bool_t loops = false;
+	//no matching label find empty graph with 0 vertice return
 	if (matches.size() == 0) {
 		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
 		SETGAN(&mygraph, "vertices", 0);
+		SETGAS(&mygraph, "name", "UNDEFINED");
 		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
 		return true;
 	}
 
-	SETGAS(&mygraph, "name", "kernelfullgraph");  // set graph name attribute
+	SETGAS(&mygraph, "name", "fullgraph");  // set graph name attribute
 	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
 	int status = igraph_full(&mygraph, n_vertices, false, loops);
 
@@ -112,46 +122,33 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 		return false;
 	}
 
-	//define container for keypoints
-	Eigen::MatrixXd pos(n_vertices, 2);
-	//loop through and add edges
-	for (size_t i = 0; i < n_vertices; i++) {
-		pos.row(i) = Eigen::Vector2d(kpts[matches[i].queryIdx].pt.x, kpts[matches[i].queryIdx].pt.y);
-	}
+	////define container for keypoints
+	//Eigen::MatrixXd pos(n_vertices, 2);
+	//for (size_t i = 0; i < n_vertices; i++) {
+	//	pos.row(i) = Eigen::Vector2d(kpts[matches[i].queryIdx].pt.x, kpts[matches[i].queryIdx].pt.y);
+	//}
 
-	//dynamic C array for labels and scales
-
-	/*igraph_real_t *labels = (igraph_real_t*)malloc(sizeof(igraph_real_t)*n_vertices);
-	igraph_real_t* scales = (igraph_real_t*)malloc(sizeof(igraph_real_t) * n_vertices); */// change it to std vector
-	std::vector<igraph_real_t> labs(n_vertices), scls(n_vertices), posx(n_vertices), posy(n_vertices),eweight(igraph_ecount(&mygraph), 1);
+	std::vector<igraph_real_t> labs(n_vertices);
 	igraph_real_t* labels = labs.data();
-	igraph_real_t* scales = scls.data();
-	igraph_real_t* positionx = posx.data();
-	igraph_real_t* positiony = posy.data();
-	igraph_real_t* edgeW = eweight.data();
 	//allocate word label to query nodes
 	for (size_t i = 0; i < n_vertices; i++) {
 		labs[i] = matches[i].trainIdx;
-		scls[i] = kpts[matches[i].queryIdx].size;
-		posx[i] = kpts[matches[i].queryIdx].pt.x;
-		posy[i] = kpts[matches[i].queryIdx].pt.y;
 	}
-	//igraph add labels and degrees attributes 
-	igraph_vector_t lab_vec, edge_vec, scale_vec, posx_vec, posy_vec, eweight_vec;
-	igraph_vector_view(&eweight_vec, edgeW, igraph_ecount(&mygraph));
-	igraph_vector_view(&lab_vec, labels, n_vertices);
-	igraph_vector_view(&scale_vec, scales, n_vertices);
-	igraph_vector_view(&posx_vec, positionx, n_vertices);
-	igraph_vector_view(&posy_vec, positiony, n_vertices);
-	
-	/*igraph_vector_init(&deg_vec, n_vertices);*/
-	//set edge attributes for all edges
-	SETEANV(&mygraph, "weight", &eweight_vec);
-	SETVANV(&mygraph, "label", &lab_vec);
-	SETVANV(&mygraph, "scale", &scale_vec);
-	SETVANV(&mygraph, "posx", &posx_vec);
-	SETVANV(&mygraph, "posy", &posy_vec);
 
+	//igraph add labels attributes 
+	igraph_vector_t lab_vec;
+	igraph_vector_view(&lab_vec, labels, n_vertices);
+	
+	SETVANV(&mygraph, "label", &lab_vec);
+
+	//igraph init weight attributes
+	std::vector<igraph_real_t> w(n_vertices);
+	igraph_real_t* weights = w.data();
+	for (size_t i = 0; i < n_vertices; i++) {
+		w[i] = 1.0;
+	}
+	igraph_vector_t weight_vec;
+	igraph_vector_view(&weight_vec, weights, n_vertices);
 	igraph_simplify(&mygraph, true, true, 0);
 	return true;
 }
@@ -204,7 +201,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 		size_t x = 0;
 		std::iota(indexes.col(i).data(), indexes.col(i).data()+n_vertices, x); // sequence assignment for index value
 	}
-	//sort the distances and stores the indexes, col represents the sequence!
+	//sort the distances and stores the indexes, col represents the sequence! from small to large
 	for (size_t i = 0; i < n_vertices; i++) {
 		std::sort(indexes.col(i).data(), indexes.col(i).data() + n_vertices, [&](size_t left, size_t right) {return (dists.col(i))(left) < (dists.col(i))(right); });
 	}
@@ -290,18 +287,19 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 //RANSAC method to extend the sourceGraph by merging extendGraph
 //bestMatches should be the extendGraph as query to the sourceGraph
 //best matches should be generated from the compressed descriptors matching!
-//new graph stores in the source graph
-bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMatch> &bestMatches)
+//new graph stores in the sourcegraph
+//keypoints matching
+bool graph::extendDemo(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMatch> &bestMatches)
 {
-	if (bestMatches.size() < 5) {
-		std::cout << "graph::extend: Error: RANSAC transform need at least 5 points.";
+	if (bestMatches.size() < 8) {
+		std::cout << "graph::extend: Error: opencv ransac need at least 8 points.";
 		return false;
 	}
 	
-	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	igraph_init();
 	//separate the inliners and outliers
-	size_t n_srcVertices = GAN(&sourceGraph, "n_vertices");
-	size_t n_exdVertices = GAN(&extendGraph, "n_vertices");
+	int n_srcVertices = GAN(&sourceGraph, "n_vertices");
+	int n_exdVertices = GAN(&extendGraph, "n_vertices");
 
 	//extract keypoints from the exdgraph
 	igraph_vector_t srcPosx, srcPosy, exdPosx, exdPosy,exdScale,exdLabel;
@@ -419,5 +417,230 @@ bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<DMa
 	//set new number of vertics
 	SETGAN(&sourceGraph, "n_vertices", igraph_vcount(&sourceGraph));
 	
+	return true;
+}
+
+//the best matches should be queryId->extendGraph, trainId->sourceGraph
+bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::KeyPoint>& srckpts, std::vector<cv::KeyPoint>& qrykpts, std::vector<cv::DMatch>& bestMatches)
+{
+	if (bestMatches.size() < 8) {
+		std::cout << "graph::extend: Error: opencv ransac need at least 8 points.";
+		return false;
+	}
+
+	igraph_i_set_attribute_table(&igraph_cattribute_table);
+	//separate the inliners and outliers
+	int n_srcVertices = GAN(&sourceGraph, "n_vertices");
+	int n_exdVertices = GAN(&extendGraph, "n_vertices");
+
+	//extract keypoints from the exdgraph
+	igraph_vector_t srcPosx, srcPosy, exdPosx, exdPosy, exdScale, exdLabel;
+	igraph_vector_init(&srcPosx, 0);
+	igraph_vector_init(&srcPosy, 0);
+	igraph_vector_init(&exdPosy, 0);
+	igraph_vector_init(&exdPosx, 0);
+	igraph_vector_init(&exdScale, 0);
+	igraph_vector_init(&exdLabel, 0);
+
+	VANV(&sourceGraph, "posx", &srcPosx);
+	VANV(&sourceGraph, "posy", &srcPosy);
+
+	VANV(&extendGraph, "posx", &exdPosx);
+	VANV(&extendGraph, "posy", &exdPosy);
+
+	VANV(&extendGraph, "scale", &exdScale);
+	VANV(&extendGraph, "label", &exdLabel);
+
+	std::vector<cv::Point2f> srcKpts(bestMatches.size()), exdKpts(bestMatches.size()), allexdKpts(n_exdVertices);
+
+	//matches is filtered and may not contains all points
+	for (size_t i = 0; i < bestMatches.size(); i++) {
+		exdKpts[i].x = VECTOR(exdPosx)[bestMatches[i].queryIdx];
+		exdKpts[i].y = VECTOR(exdPosy)[bestMatches[i].queryIdx];
+		srcKpts[i].x = VECTOR(srcPosx)[bestMatches[i].trainIdx];
+		srcKpts[i].y = VECTOR(srcPosy)[bestMatches[i].trainIdx];
+	}
+	for (size_t i = 0; i < n_exdVertices; i++) {
+		allexdKpts[i].x = VECTOR(exdPosx)[i];
+		allexdKpts[i].y = VECTOR(exdPosy)[i];
+	}
+	//compute the homography matrix
+	cv::Mat mask;
+	cv::Mat homo = findHomography(exdKpts, srcKpts, mask, cv::RANSAC);
+
+	//transform the graph points and rebuild the graph
+
+	std::vector<Point2f> transfKpts;
+	perspectiveTransform(allexdKpts, transfKpts, homo);
+
+	std::vector<KeyPoint> mergeKpts;
+	std::map<size_t, size_t> inliers, outliers;
+	std::vector<size_t> outliers_idx;
+
+	//find outliers and record them
+	for (size_t i = 0; i < mask.rows; i++) {
+		if (mask.at<uchar>(i)) {
+			inliers.insert({ bestMatches[i].queryIdx,bestMatches[i].trainIdx });
+		}
+	}
+	for (size_t i = 0; i < igraph_vcount(&extendGraph); i++) {
+		//if not inside inliers then add to the container
+		if (inliers.find(i) == inliers.end()) {
+			outliers_idx.push_back(i);
+			mergeKpts.push_back(KeyPoint(transfKpts[i], VECTOR(exdScale)[i], -1.0, 0, 0, VECTOR(exdLabel)[i]));
+		}
+	}
+	//default the new vertices are new continuous larger number
+	igraph_add_vertices(&sourceGraph, outliers_idx.size(), 0);
+
+	//n_srcVertices is the original srcG v number, map the outliers from extend graph to the source graph
+	for (size_t i = 0; i < outliers_idx.size(); i++) {
+		outliers.insert({ outliers_idx[i] , n_srcVertices + i });
+	}
+
+	//check inliers and outliers, accmulate or add new edge weights
+	for (size_t i = 0; i < igraph_vcount(&extendGraph); i++) {
+		for (size_t j = i; j < igraph_vcount(&extendGraph); j++) {
+			igraph_integer_t eid;
+			igraph_get_eid(&extendGraph, &eid, i, j, IGRAPH_UNDIRECTED, false);
+			if (eid == -1) {
+				continue; //no edge found on (i,j) just skip
+			}
+			//if both of them are in inliers then do edge weights merging
+			size_t map_i, map_j;
+			auto weight = EAN(&extendGraph, "weight", eid);
+			if (inliers.find(i) != inliers.end()) {
+				map_i = inliers.at(i);
+			}
+			else
+			{
+				map_i = outliers.at(i);
+			}
+			if (inliers.find(j) != inliers.end())
+			{
+				map_j = inliers.at(j);
+			}
+			else
+			{
+				map_j = outliers.at(j);
+			}
+			igraph_integer_t srceid;
+			igraph_get_eid(&sourceGraph, &srceid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+			if (srceid != -1) {
+				//merge weight with original graph this is only applied for map_i,map_j both inliers
+				SETEAN(&sourceGraph, "weight", srceid, EAN(&sourceGraph, "weight", srceid) + weight);
+			}
+			else
+			{
+				//add new edge and weight
+				igraph_add_edge(&sourceGraph, map_i, map_j);
+				igraph_get_eid(&sourceGraph, &srceid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+				SETEAN(&sourceGraph, "weight", srceid, weight);
+			}
+
+		}
+	}
+	//add outliers and its attris to the source graph
+	for (size_t i = 0; i < outliers_idx.size(); i++) {
+		SETVAN(&sourceGraph, "posx", outliers.at(outliers_idx[i]), mergeKpts[i].pt.x);
+		SETVAN(&sourceGraph, "posy", outliers.at(outliers_idx[i]), mergeKpts[i].pt.y);
+		SETVAN(&sourceGraph, "scale", outliers.at(outliers_idx[i]), mergeKpts[i].size);
+		SETVAN(&sourceGraph, "label", outliers.at(outliers_idx[i]), mergeKpts[i].class_id);
+	}
+	//set new number of vertics
+	SETGAN(&sourceGraph, "n_vertices", igraph_vcount(&sourceGraph));
+
+	return true;
+}
+
+bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::DMatch>& bestMatches) {
+	igraph_init();
+	if (bestMatches.size() == 0) {
+		return false;
+	}
+	//source graph vertices number
+	int n_srcVertices = GAN(&sourceGraph, "n_vertices");
+
+	//extented graph vertices number
+	int n_exdVertices = GAN(&extendGraph, "n_vertices");
+
+	if (n_srcVertices == 0 || n_exdVertices == 0) {
+		return false;
+	}
+	//igraph vector to store src and exd graph nodel label
+	std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> srcLabel(new igraph_vector_t(), &igraph_vector_destroy), 
+		exdLabel(new igraph_vector_t(), &igraph_vector_destroy);
+	igraph_vector_init(srcLabel.get(), 0);
+	igraph_vector_init(exdLabel.get(), 0);
+
+	VANV(&sourceGraph, "label", srcLabel.get());
+	VANV(&extendGraph, "label", exdLabel.get());
+
+	//count the total number of vertices of the new graph
+	int n_mergedVectirces = n_srcVertices + n_exdVertices - bestMatches.size();
+
+	//merge graphs to the source graph
+	igraph_add_vertices(&sourceGraph, n_mergedVectirces - n_srcVertices, 0);
+
+	//inliers map that stores the corresponding vertices of the two graphs
+	std::map<int, int> inliers, outliers;
+	for (int i = 0; i < bestMatches.size(); i++) {
+		inliers.insert({ bestMatches[i].queryIdx,bestMatches[i].trainIdx });
+	}
+
+	//build outliers map
+	int counter = 0;
+	for (int i = 0; i < n_exdVertices; i++) {
+		if (inliers.find(i) == inliers.end()) {
+			outliers.insert({ i,n_srcVertices + counter });
+			counter++;
+		}
+	}
+	//check inliers, accmulate and merge edge weight
+	for (int i = 0; i < n_exdVertices; i++) {
+		for (int j = 0; j < n_exdVertices; j++) {
+			igraph_integer_t eid;
+			igraph_get_eid(&extendGraph, &eid, i, j, IGRAPH_UNDIRECTED, false);
+
+			//no edge found then continue
+			if (eid == -1) {
+				continue;
+			}
+			int map_i, map_j; //mapped exdGraph index in mergedGraph 
+			auto weight = EAN(&extendGraph, "weight", eid);
+			if (inliers.find(i) != inliers.end()) {
+				map_i = inliers.at(i);
+			}
+			else
+			{
+				map_i = outliers.at(i);
+			}
+			if (inliers.find(j) != inliers.end())
+			{
+				map_j = inliers.at(j);
+			}
+			else
+			{
+				map_j = outliers.at(j);
+			}
+			//check Edge_ij existence
+			igraph_integer_t srcEid;
+			igraph_get_eid(&sourceGraph, &srcEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+			if (srcEid != -1) {
+				//means the edge is inliers edge, merge weight with source graph 
+				SETEAN(&sourceGraph, "weight", srcEid, EAN(&sourceGraph, "weight", srcEid) + weight);
+			}
+			else {
+				//add new edge and weight
+				igraph_add_edge(&sourceGraph, map_i, map_j);
+				igraph_get_eid(&sourceGraph, &srcEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+				SETEAN(&sourceGraph, "weight", srcEid, weight);
+			}
+		}
+	}
+	//set the new vertices and add attributes for the outliers
+	for (auto& i : outliers) {
+		SETVAN(&sourceGraph, "label", i.second, VECTOR(*exdLabel)[i.first]);
+	}
 	return true;
 }

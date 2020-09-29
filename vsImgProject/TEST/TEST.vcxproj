@@ -89,7 +89,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GLOG_NO_ABBREVIATED_SEVERITIES;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>D:\thesis\Visual-Coarse-Relocalization-for-AR-Navigation-App\3rdParty\jsoncpp\single_include;D:\thesis\Visual-Coarse-Relocalization-for-AR-Navigation-App\vsImgProject;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>MaxSpeed</Optimization>
@@ -144,6 +144,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="nbhdGraph.cpp" />
     <ClCompile Include="Graphtest.h" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="UKsets.cpp" />
@@ -155,6 +156,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="nbhdGraph.h" />
     <ClInclude Include="featureTest.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

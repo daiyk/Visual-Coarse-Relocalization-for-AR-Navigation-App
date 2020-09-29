@@ -10,7 +10,8 @@
 #include <fstream>
 #include <filesystem>
 
-bool useCOvdet = false;
+bool useCOvdet = true;
+bool useTFIDF = false; //whether include tfidf scores in the compuattion
 //1th arg: path to the ukbdata
 void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//read UKBench data
@@ -19,6 +20,7 @@ void UKB::UKFLANNTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 	std::string testFolder = argv[1];
 	double score_sum = 0.0;
 	std::vector<double> single_scores(sampleSize, 0.0);
+
 	//read the database images
 	UKBench ukb(testFolder, imgsetSize);
 	std::vector<std::vector<double>> scores(sampleSize, std::vector<double>(ukb.imgIndexs.size()));
@@ -199,12 +201,184 @@ void UKB::UKtrain(int argc, const char* argv[], int numOfTrain) {
 	ukb.UKdataTrain(numOfTrain);
 }
 
+//sample test categories
+//find the best 4 for the sampled images
+//1th argv: path to the UKB imagesets
+//2th argv: path to the kcenter file
+void UKB::UKRecurTest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
+	std::string testFolder = argv[1];
+	double score_sum = 0.0;
+
+	//score container for each sample image
+	std::vector<double> single_scores(sampleSize, 0.0);
+
+	//read the database images
+	UKBench ukb(testFolder, imgsetSize);
+	std::cout << " -->constructed test dataset with imgsets: " << ukb.imgIndexs.size() << std::endl;
+	std::vector<std::vector<double>> scores(sampleSize, std::vector<double>(ukb.imgIndexs.size(), 0.0));
+
+	//read kcenters
+	cv::FileStorage reader;
+	reader.open(argv[2], cv::FileStorage::READ);
+	if (!reader.isOpened()) { std::cout << "failed to open the kcenter file" << std::endl; return; }
+
+	//read kcenters
+	cv::Mat kCenters, tfidf;
+	reader["kcenters"] >> kCenters;
+	reader.release();
+
+	//build kdtree
+	matcher::kdTree kdtreeMatcher(kCenters);
+
+	clock_t sTime = clock();
+	kernel::recurRobustKel kernelCompObj(5, kdtreeMatcher.numWords());
+	//read tfidf if it exist
+	if (!fileManager::parameters::tfidfPath.empty()&& useTFIDF) {
+		reader.open(fileManager::parameters::tfidfPath, cv::FileStorage::READ);
+		if (!reader.isOpened()) { std::cout << "failed to open the tfidf file" << std::endl; return; }
+
+		//read tfidf
+		reader["kcenters"] >> tfidf;
+		reader.release();
+		kernelCompObj.setTFIDF(tfidf);
+	}
+
+	//start sampling and get indexes
+	std::vector<std::string> imgs;
+	std::vector<int> query_indexes;
+	ukb.UKdataSample(sampleSize, imgs, query_indexes);
+	std::cout << std::endl << " -->sampled " << sampleSize << " imgs from imgdatasets " << std::endl << " --> with category indexes: " << std::endl;
+	for (auto i : imgs) {
+		std::cout << i << std::endl;
+	}
+	std::cout << std::endl;
+
+	//build graphs for query images and store them for comparison
+	for (int i = 0; i < sampleSize; i++) {
+		cv::Mat descripts1;
+		std::vector<cv::KeyPoint> kpts1;
+
+		if (!fs::exists(fs::path(imgs[i]))) {
+			std::cout << "vlfeat sift feature detection: Warning: " << imgs[i] << " does not exist!" << std::endl;
+			continue;
+		}
+		cv::Mat grayImg;
+		grayImg = cv::imread(imgs[i], cv::IMREAD_GRAYSCALE);
+
+		try {		
+			extractor::covdetSIFT(grayImg, descripts1, kpts1);				
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			break;
+		};
+
+		std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts1);
+		igraph_t i_graph;
+		bool status = graph::build(matches, kpts1, i_graph);
+		kernelCompObj.push_back(i_graph);
+		
+		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+
+		//store all query graphs and prepare for comparing with UKBdatasets
+	}
+	std::cout << " -->finished query graphs building start iteration over database imgsets" << std::endl;
+
+	auto& kernelgraphs = kernelCompObj.getGraphs();
+	for (int i = 0; i < kernelgraphs.size(); i++) {
+		std::cout << i << "th graph node number: " << igraph_vcount(&kernelgraphs[i]) << std::endl;
+	}
+
+	//iterate the whole datasets and records the score
+	int unit_train = 50;
+	int n_iter = imgsetSize / unit_train, begin, end;
+	for (int i = 0; i < n_iter + 1; i++) {
+		begin = unit_train * i;
+		end = unit_train * (i + 1);
+		if (end > imgsetSize) { end = imgsetSize; }
+		if (begin == end) { break; }
+		std::vector<std::string> database_imgs;
+		std::vector<int> source_indexs;
+		std::vector<igraph_t> databaseGraphs;
+		std::cout << "the begin: " << begin << "\t the end: " << end << std::endl;
+		ukb.UKdataExt(begin, end, database_imgs, source_indexs);
+
+		databaseGraphs.resize(database_imgs.size());
+		#pragma omp parallel
+		{
+			#pragma omp for schedule(dynamic)
+			for (int j = 0; j < database_imgs.size(); j++) {
+				if (!fs::exists(fs::path(database_imgs[j]))) {
+					std::cout << "vlfeat sift feature detection: Warning: " << database_imgs[j] << " does not exist!" << std::endl;
+					continue;
+				}
+				cv::Mat grayImg;
+				grayImg = cv::imread(database_imgs[j], cv::IMREAD_GRAYSCALE);
+
+				cv::Mat descripts2;
+				std::vector<cv::KeyPoint> kpts2;
+				try {
+					extractor::covdetSIFT(grayImg, descripts2, kpts2);
+				}
+				catch (std::invalid_argument& e) {
+					std::cout << e.what() << std::endl;
+					break;
+				};
+				//build graph and do comparing
+				std::vector<cv::DMatch> matches = kdtreeMatcher.search(descripts2);
+				bool status = graph::build(matches, kpts2, databaseGraphs[j]);
+				if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
+			}
+		}
+
+		//compute scores for the query graphs, with tfidf weighting on
+		std::vector<std::vector<float>> scores_block = kernelCompObj.robustKernelCompWithQueryArray(databaseGraphs,source_indexs);
+
+		//assignment to the scores vector
+		for (int m = 0; m < sampleSize; m++) {
+			for (int n = 0; n < scores_block[m].size(); n++) {
+				scores[m][n + begin * 4] = scores_block[m][n];
+			}
+		}
+	}
+
+	//rerank the scores and get the first 4 best scores
+	std::vector<int> indexes_local(ukb.imgIndexs.size());
+	std::iota(indexes_local.begin(), indexes_local.end(), 0);
+	for (int i = 0; i < sampleSize; i++) {
+		std::vector<int> temp(indexes_local);
+		//cout score function
+		std::cout << "scores for every images: " << std::endl;
+		for (int j = 0; j < scores[i].size(); j++) {
+			std::cout << scores[i][j] << " ";
+		}
+
+		std::sort(temp.begin(), temp.end(), [&](size_t left, size_t right) {return scores[i][left] > scores[i][right]; });
+		//report temp after rerank
+		std::cout << "\n raw scores: \n";
+		for (int j = 0; j < temp.size(); j++) {
+			std::cout << temp[j] << " ";
+		}
+		//get the first 4 numbers
+		for (int j = 0; j < 4; j++) {
+			if (ukb.imgIndexs[temp[j]] == query_indexes[i]) {
+				single_scores[i] += 1.0;
+			}
+		}
+		std::cout << single_scores[i] << "  \n";
+		score_sum += single_scores[i];
+	}
+	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
+	UKB::UKResWriter("UKReurtest_sample_" + std::to_string(sampleSize), single_scores);
+}
+
+//sample test categories
+//find the best 4 for the sampled images
 //1th argv: path to the UKB imagesets
 //2th argv: path to the kcenter file
 void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
-	//sample test categories
-	//find the best 4 for the sampled 50 images
-	bool useTFIDF = false; //whether include tfidf scores in the compuattion
+	
+	
 	std::string testFolder = argv[1];
 	double score_sum = 0.0;
 	std::vector<double> single_scores(sampleSize, 0.0);
@@ -227,14 +401,14 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	matcher::kdTree kdtreeMatcher(kCenters);
 
 	clock_t sTime = clock();
-	kernel::robustKernel kernelCompObj(1, kdtreeMatcher.size());
+	kernel::robustKernel kernelCompObj(1, kdtreeMatcher.numWords());
 	
 	//read params file for read tfidf scores or compute tfidf score for the database
 	if (!fileManager::parameters::tfidfPath.empty()) {
 		reader.open(fileManager::parameters::tfidfPath, cv::FileStorage::READ);
 		if (!reader.isOpened()) { std::cout << "failed to open the tfidf file" << std::endl; return; }
 
-		//read kcenters
+		//read tfidf
 		reader["kcenters"] >> tfidf;
 		reader.release();
 
@@ -243,7 +417,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	else
 	{
 		probModel::tfidf ukbTFIDF;
-		ukbTFIDF.setNumDict(kdtreeMatcher.size());
+		ukbTFIDF.setNumDict(kdtreeMatcher.numWords());
 		ukbTFIDF.setNumDoc(imgsetSize);
 		ukbTFIDF.init();
 		ukb.UKBcomputeTFIDF(ukbTFIDF, kdtreeMatcher);
@@ -253,7 +427,8 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 		fileManager::write_to_file("UKB_TFIDF_" + std::to_string(imgsetSize), kpts, ukbTFIDF.getWeights());
 		//set tfidf scores
 		kernelCompObj.setTFIDF(ukbTFIDF.getWeights());
-}
+	}
+
 	//start sampling and get indexes
 	std::vector<std::string> imgs;
 	std::vector<int> query_indexes;

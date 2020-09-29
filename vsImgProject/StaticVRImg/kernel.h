@@ -8,25 +8,47 @@
 #include <set>
 #include <Eigen/Core>
 #include <opencv2/core.hpp>
+#include <boost/dynamic_bitset.hpp>
+#include <feature/types.h>
 namespace kernel {
+	using scoreType = std::unordered_map<int, std::vector<float>>;
+	using vetIndType = std::unordered_map<int, std::vector<size_t>>; //inverted index type
 	class covisMap {
 	public:
-		covisMap(int kCenters):kCenters(kCenters) {
+
+		covisMap(int kCenters, int dbSize = 1000):numCenters_(kCenters), numDBImgs_(dbSize) {
 			igraph_sparsemat_init(&this->map, kCenters, 1, kCenters * 500);
 			this->inverted_tree.resize(kCenters);
 		};
-
+		~covisMap() { igraph_sparsemat_destroy(&this->map); }
 		//add labels in mygraph to inverted tree and covisibility map
 		void process(igraph_t& mygraph);
+
+		//build inverted_index tree
+		void addEntry(int image_id, colmap::FeatureVisualIDs& id);
+
+		//check the existence of id statistics with image_id
+		bool existEntry(int image_id);
+
+		//get visual id statistics of given image_id
+		boost::dynamic_bitset<uint8_t> getEntry(int image_id);
+		
+		//query the map and return the best candidates
+		void Query(colmap::FeatureVisualIDs& qryId, std::vector<int>& candids);
+
+		//resize the covisMap
+		void resize(int new_size) { if (new_size > invert_index_.size()) invert_index_.resize(new_size); }
+
 		//retrieve the relevant graph ids and return it
 		void processSampleLoc();
 		std::vector <std::vector<int>> retrieve(igraph_t& queryGraph);
-		void printMap();
-		~covisMap() { igraph_sparsemat_destroy(&this->map); }
+		void printMap();	
 	private:
 		std::vector<std::vector<int>> inverted_tree;
+		std::vector<boost::dynamic_bitset<uint8_t>> invert_index_;
 		igraph_sparsemat_t map;
-		int kCenters;
+		int numCenters_;
+		int numDBImgs_;
 	};
 
 
@@ -60,11 +82,17 @@ namespace kernel {
 	class recurRobustKel {
 	public:
 		recurRobustKel(int h_max, size_t n_labels); //h_max is the number of max iteration, n_labels is the length of dict
-		auto robustKernelCom();
+		void robustKernelCom(int i, int j, scoreType &scores, vetIndType& inv1, vetIndType& inv2);
+		void robustKernelCom(int i, igraph_t& source_graph, scoreType& scores, vetIndType& inv1, vetIndType& inv2, bool useTFIDF = false);
+		void robustKernelCom(igraph_t& query_graph, igraph_t& source_graph, scoreType& kernel_vals, vetIndType& inv1, vetIndType& inv2, bool useTFIDF=false);
 		double robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind = -1);
+		std::vector < std::vector<float>> robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int> &source_indexes);
 		void push_back(igraph_t newgraph);
 		void graphPrepro(igraph_t& graph);
+		std::vector<igraph_t>& getGraphs() { return this->graphs; };
+		void setTFIDF(cv::Mat& setTfidf) { tfidf = setTfidf; };
 	private:
+		void clearDatabaseGraphs(int n_query_graphs);
 		int h_max;
 		size_t n_labels;
 		std::set<int> label_sets;
@@ -73,6 +101,7 @@ namespace kernel {
 		std::vector<igraph_t> graphs;
 		std::vector<double> raw_self_kernel;
 		std::vector<std::unordered_map<int, std::vector<size_t> > > inverted_indices;
+		cv::Mat tfidf;
 	};
 
 	

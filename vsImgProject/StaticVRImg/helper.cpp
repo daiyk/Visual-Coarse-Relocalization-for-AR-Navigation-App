@@ -1,4 +1,18 @@
 #include "helper.h"
+
+
+cv::Mat helper::DescriptorFloatToUint(cv::Mat descripts) {
+    cv::Mat unsignedDescripts(descripts.rows, descripts.cols, CV_8U);
+    for (int i = 0;i< descripts.rows; i++) {
+        for(int j=0;j<descripts.cols;j++){
+            const float value = std::round(512.0f * descripts.at<float>(i, j));
+            unsignedDescripts.at<uint8_t>(i,j) = std::min(static_cast<float>(std::numeric_limits<uint8_t>::max()),std::max(static_cast<float>(std::numeric_limits<uint8_t>::min()), value));
+            //cast value to half?
+        }
+    }
+    return unsignedDescripts;
+}
+
 std::string helper::dateTime() {
     std::time_t t = std::time(0);   // get time now
     std::tm* now = std::localtime(&t);
