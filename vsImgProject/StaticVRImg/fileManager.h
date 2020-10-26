@@ -3,17 +3,36 @@
 #define _FILEMANAGER_H
 #include <string>
 #include <vector>
-#include <filesystem>
+#include <iostream>
+#include <boost/filesystem.hpp>
 #include <opencv2/core.hpp>
 #include <FreeImage.h>
 #define IGRAPH_STATIC 1
 #include "igraph.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-namespace fs = std::filesystem;
-
-
+namespace fs = boost::filesystem;
 namespace fileManager {
+	class BaseFile {
+		virtual bool Read(std::ifstream& instream) const = 0;
+		virtual bool Write(json root) const = 0;
+	};
+	class graphManager : public BaseFile {
+	public:
+		graphManager(std::string& rootPath) { root_path_ = rootPath; }
+		bool writeGraph(igraph_t mygraph);
+		void setName(std::string name) { graph_name_ = name; }
+		bool readGraph(std::string path);
+		bool writeEdges(const std::vector<int> &edges);
+		bool writeLabels(const std::vector<int> &labels);
+		bool writeWeights(const std::vector<int> &weights);
+	private:
+		bool Read(std::ifstream& instream){}
+		bool Write(json root){}
+		std::string graph_name_="";
+		std::string root_path_;
+		json iobuffer_;
+	};
 	//default user_set location
 	extern fs::path user_set_default;
 
@@ -100,24 +119,11 @@ namespace fileManager {
 
 		//database path
 		std::string database_path = "";
+
+		//num of inlier images to keep
+		int numImageToKeep = 2;
 	};
-	/*class imageReader {
-	public:
-		imageReader();
-		imageReader(std::string path);
-	private:
-		typedef std::unique_ptr<FIBITMAP, decltype(&FreeImage_Unload)> FIBitmapPtr;
-		FIBitmapPtr data;
-		int width;
-		int height;
-		int channel;
-	};
-
-	imageReader::imageReader() : data(nullptr, &FreeImage_Unload),width(0),height(0),channel(0) {};
-	imageReader::imageReader(std::string path) {
-
-
-	}*/
+	
 }
 
 #endif // 

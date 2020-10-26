@@ -6,12 +6,13 @@
 #include "StaticVRImg/fileManager.h"
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/kernel.h"
+#include "StaticVRImg/helper.h"
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
-#include <filesystem>
+#include <boost/filesystem.hpp>
 #include <igraph.h>
 #include <Eigen/Core>
 #include <algorithm>
@@ -23,12 +24,7 @@
 #include <fstream>
 #include "StaticVRImg/cluster.h"
 
-//test keywords
-inline const char* keys =
-"{ help h |                  | Print help message. }"
-"{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
-"{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
-"{ path   |                  | Path to the image folder, set mode for different processing ways }";
+
 
 inline void covisMapTest() {
 	//define testing graphs
@@ -224,10 +220,18 @@ inline void graphExtendTest() {
 	bestMatches.push_back(cv::DMatch(2, 5, 0));
 	bestMatches.push_back(cv::DMatch(6, 6, 0));
 	bestMatches.push_back(cv::DMatch(7, 7, 0));
-	fileManager::write_graph(testGraph, "testG1", "graphml");
-	fileManager::write_graph(testGraph2, "testG2", "graphml");
-	graph::extend(testGraph, testGraph2, bestMatches);
-
+	/*fileManager::write_graph(testGraph, "testG1", "graphml");
+	fileManager::write_graph(testGraph2, "testG2", "graphml");*/
+	igraph_t testGraph3,diffResult1,diffResult2;
+	igraph_copy(&testGraph3, &testGraph);
+	graph::extend1to2(testGraph, testGraph2, bestMatches);
+	graph::extend(testGraph3, testGraph2, bestMatches);
+	igraph_difference(&diffResult1,&testGraph3,&testGraph);
+	igraph_difference(&diffResult2, &testGraph, &testGraph3);
+	//print out relative statistics
+	std::cout << "\ntestextention graph node number:" <<GAN(&testGraph, "n_vertices");
+	std::cout << "\ntest graphs node numbers: " << sizeof(scale1) / sizeof(double) << "  " << sizeof(scale2) / sizeof(double);
+	std::cout << "\ndifference result: " << igraph_ecount(&diffResult1) << "  " << igraph_ecount(&diffResult2);
 	//write the testGraph
 	fileManager::write_graph(testGraph, "extendtest", "graphml");
 }
@@ -512,10 +516,17 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 		}
 		else
 		{
-			std::sample(indKpts.begin(), indKpts.end(), std::back_inserter(reserveKpts), size_t(descripts2.rows * kptKeeper), std::mt19937{ std::random_device{}() });
-			for (size_t i = 0; i < reserveKpts.size(); i++) {
-				reserveDescripts.push_back(descripts2.row(reserveKpts[i]));
-				reserveKpts2.push_back(kpts2[reserveKpts[i]]);
+			std::random_device rd;
+			std::mt19937 gen(rd());
+
+			std::unordered_set<int> elems = helper::pickSet(indKpts.size(), descripts2.rows * kptKeeper, gen);
+
+			std::vector<int> result(elems.begin(), elems.end());
+			std::shuffle(result.begin(), result.end(), gen);
+			/*std::sample(indKpts.begin(), indKpts.end(), std::back_inserter(reserveKpts), size_t(descripts2.rows * kptKeeper), std::mt19937{ std::random_device{}() });*/
+			for (size_t i = 0; i < result.size(); i++) {
+				reserveDescripts.push_back(descripts2.row(result[i]));
+				reserveKpts2.push_back(kpts2[result[i]]);
 			}
 		}
 		
@@ -572,8 +583,14 @@ inline void graphBuildPlusKernelTest(int argc, const char* argv[], double kptKee
 	args: see FunTestVRN
 */
 inline int dictTest(int argc, const char* argv[]) {
+	const char* testkeys =
+		"{ help h |                  | Print help message. }"
+		"{ tool   |      vlfeat      | Lib used for SIFT, \"opencv\" or \"vlfeat\" or \"both\", default \"vlfeat\". }"
+		"{ mode   |      train       | function mode, must be one of 'train', 'matching' or 'demo' }"
+		"{ path   |                  | Path to the image folder, set mode for different processing ways }";
 
-	std::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
+
+	boost::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
 	std::ofstream CSVOutput;
 	CSVOutput.open("graph_comparison.csv", std::fstream::out | std::fstream::app);
 	CSVOutput << "centerNo" << "," << "similarScore" << "\n";
@@ -584,7 +601,7 @@ inline int dictTest(int argc, const char* argv[]) {
 	std::vector<cv::KeyPoint> keypoints;
 	try
 	{
-		readResult = fileManager::funTestRead(argc, argv, trainPaths, testPaths, keys);
+		readResult = fileManager::funTestRead(argc, argv, trainPaths, testPaths, testkeys);
 	}
 	catch (const std::invalid_argument& msg)
 	{

@@ -3,7 +3,7 @@
 #define _UKSETS_H
 
 #include <string>
-#include <filesystem>
+#include <boost/filesystem.hpp>
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -14,15 +14,18 @@
 #include <StaticVRImg/probModel.h>
 #include <StaticVRImg/matcher.h>
 
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 using catPaths = std::vector<std::string>;
 namespace UKB {
 	class UKBench
 	{
 	public:
 		UKBench() :categoryNum(0) {};
-		UKBench(std::string& path, int catNum);
-		~UKBench();
+		UKBench(std::string& path, int catNum) {
+			this->categoryNum = catNum;
+			this->UKBdataRead(path);
+		};
+
 		int UKBdataRead(std::string path);
 		void UKBcomputeTFIDF(probModel::tfidf& ukbTFIDF, matcher::kdTree& kdtreeMatcher);
 		void UKdataExt(int begin, int end, std::vector<std::string>& imgs, std::vector<int>& indexs); //return begin~end opencv mat images
@@ -43,5 +46,4 @@ namespace UKB {
 	void UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize);
 	void UKResWriter(std::string name, std::vector<double> UKBScores);
 }
-
 #endif //!_UKSETS_H

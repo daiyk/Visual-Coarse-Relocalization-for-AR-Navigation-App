@@ -48,15 +48,14 @@ void kernel::robustKernel::push_back(igraph_t newgraph, int doc_ind) {
 }
 
 void kernel::robustKernel::graphPrepro(igraph_t& graph, int doc_ind) {
-    igraph_vector_t edges, labels;
-    igraph_vector_init(&edges, 0);
+    igraph_vector_t labels;
     igraph_vector_init(&labels, 0);
-    igraph_get_edgelist(&graph, &edges, true);
+
 
     //get the label vecyor
     VANV(&graph, "label", &labels);
 
-    size_t edgeLen = igraph_vector_size(&edges);
+    size_t edgeLen = igraph_ecount(&graph);
 
     //build inverted indices
     unordered_map<int, vector<size_t>> inverted_index;
@@ -64,13 +63,11 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph, int doc_ind) {
         inverted_index[VECTOR(labels)[i]].push_back(i);
     }
 
-    
      //insert to label_sets for the calculation of total unique labels
     double kernelval = 0.0;
     for (auto& inv_idx : inverted_index) {
         this->label_sets.insert(inv_idx.first);
         //compute raw selfkernel value for each query graphs
-
         kernelval += robustKernelVal(inv_idx.second, inv_idx.second, graph, graph,doc_ind);
       
     }
@@ -79,9 +76,8 @@ void kernel::robustKernel::graphPrepro(igraph_t& graph, int doc_ind) {
     this->inverted_indices.push_back(inverted_index);
     //stores the number of vertices and edges
     this->ver_nums.push_back(igraph_vector_size(&labels));
-    this->edge_nums.push_back(edgeLen / 2);
+    this->edge_nums.push_back(edgeLen);
     
-    igraph_vector_destroy(&edges);
     igraph_vector_destroy(&labels);
 }
 
@@ -89,8 +85,6 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
 
     std::vector<double> kernelVals;
 
-    //?? edge norm should be obatained from edge weight computation
-    
     //iterate through the two sets of vertices and compute the kernel values 
     for (size_t i = 0; i < vert1.size(); i++) {
         igraph_vector_t nei1_lab;
@@ -100,22 +94,30 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
         igraph_cattribute_VANV(&graph_i, "label", vert1_nei, &nei1_lab);
 
         if (igraph_vector_size(&nei1_lab) == 0) { 
-            igraph_vector_destroy(&nei1_lab);
+            igraph_vector_destroy(&nei1_lab); //if no adjacent nodes available continue to next one
             continue; 
         }
-        //create the nei vector
-        std::vector<double> nei1_vec(this->n_labels, 0);
-        //igraph_vector_t nei1_vec;
+
+        //query the neighbor vertices and query the edge weight
+        std::vector<float> nei1_vec(this->n_labels, 0);
+
         //depend on whether supply doc_ind to do tfidf weighting
+        igraph_es_t nei_edges_i;
+        igraph_es_incident(&nei_edges_i, vert1[i], IGRAPH_ALL);
+
+        //query edge weight
+        std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> nei_weights_i(new igraph_vector_t(), &igraph_vector_destroy);
+        igraph_vector_init(nei_weights_i.get(), 0);
+        igraph_cattribute_EANV(&graph_i, "weight", nei_edges_i, nei_weights_i.get());
         if (!this->tfidf.empty() && doc_ind != -1) {
             for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
-                nei1_vec[(int)VECTOR(nei1_lab)[m]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei1_lab)[m]);
+                nei1_vec[(int)VECTOR(nei1_lab)[m]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei1_lab)[m])* VECTOR(*nei_weights_i)[m];
             }
         }
         else
         {
             for (size_t m = 0; m < igraph_vector_size(&nei1_lab); m++) {
-                nei1_vec[(int)VECTOR(nei1_lab)[m]] += 1;
+                nei1_vec[(int)VECTOR(nei1_lab)[m]] += VECTOR(*nei_weights_i)[m];
             }
         }
         
@@ -125,45 +127,50 @@ double kernel::robustKernel::robustKernelVal(std::vector<size_t>& vert1, std::ve
             igraph_vs_t vert2_nei;
             igraph_vs_adj(&vert2_nei, vert2[j], IGRAPH_ALL);
             igraph_cattribute_VANV(&graph_j, "label", vert2_nei, &nei2_lab);
-
+            
             if (igraph_vector_size(&nei2_lab) == 0) { 
                 igraph_vector_destroy(&nei2_lab); 
                 continue; 
             }
             //create the nei_vector
-            std::vector<int> nei2_vec(this->n_labels, 0);
-            //igraph_vector_t nei2_vec;
-            //igraph_vector_init(&nei2_vec, this->n_labels);
+            std::vector<float> nei2_vec(this->n_labels, 0);
+
+            igraph_es_t nei_edges_j;
+            igraph_es_incident(&nei_edges_j, vert2[j], IGRAPH_ALL);
+            //query edge weight
+            std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> nei_weights_j(new igraph_vector_t(), &igraph_vector_destroy);
+            igraph_vector_init(nei_weights_j.get(), 0);
+            igraph_cattribute_EANV(&graph_j, "weight", nei_edges_j, nei_weights_j.get());
+
+
 
             if (!this->tfidf.empty() && doc_ind != -1) {
                 for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
-                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei2_lab)[n]);
+                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += this->tfidf.at<float>(doc_ind, (int)VECTOR(nei2_lab)[n])* VECTOR(*nei_weights_j)[n];
                 }
             }
             else
             {
                 for (size_t n = 0; n < igraph_vector_size(&nei2_lab); n++) {
-                    nei2_vec[(int)VECTOR(nei2_lab)[n]] += 1;
+                    nei2_vec[(int)VECTOR(nei2_lab)[n]] +=  VECTOR(*nei_weights_j)[n];
                 }
             } 
 
             //rebuild the vector with element-wise min
-            std::vector<double> cwiseMinVec;
+            /*std::vector<double> cwiseMinVec;
             cwiseMinVec.reserve(this->n_labels);
-            std::transform(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), std::back_inserter(cwiseMinVec), [](double a, double b) {return std::min(a, b); });
-
+            std::transform(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), std::back_inserter(cwiseMinVec), [](float a, float b) {return std::min(a, b); });*/
 
             //multiple two vector and get the kernel value
             //igraph_vector_mul(&nei2_vec, &nei1_vec);
             //kernelVals.push_back(igraph_vector_sum(&nei2_vec));
-            kernelVals.push_back(std::inner_product(cwiseMinVec.begin(), cwiseMinVec.end(), cwiseMinVec.begin(), 0.0));
+            /*kernelVals.push_back(std::inner_product(cwiseMinVec.begin(), cwiseMinVec.end(), cwiseMinVec.begin(), 0.0));*/
+            kernelVals.push_back(std::inner_product(nei1_vec.begin(), nei1_vec.end(), nei2_vec.begin(), 0.0));
 
             igraph_vector_destroy(&nei2_lab);
-            //igraph_vector_destroy(&nei2_vec);
             igraph_vs_destroy(&vert2_nei);
         }
         igraph_vector_destroy(&nei1_lab);
-        //igraph_vector_destroy(&nei1_vec);
         igraph_vs_destroy(&vert1_nei);
 
     }
@@ -197,7 +204,6 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
         }
     }*/
     //total unique labels num
-
     //preprocessing database graphs
     for (int i = 0; i < database_graphs.size(); i++) {
         igraph_vector_t edges, labels;
@@ -207,6 +213,8 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
 
         //get the label vector
         VANV(&database_graphs[i], "label", &labels);
+
+        //get the edge weight
 
         size_t edgeLen = igraph_vector_size(&edges);
 
@@ -237,15 +245,12 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
         igraph_vector_destroy(&edges);
         igraph_vector_destroy(&labels);
     }
-
-    int n_labels = labelSets.size();
     std::vector<std::vector<double>> k_matrix(n_query_graphs, std::vector<double>(n_database_graphs, 0.0));
     //raw score only used for debugging
     raw_scores = std::vector<std::vector<int>>(n_query_graphs, std::vector<int>(n_database_graphs, 0));
     /*igraph_matrix_t k_matrix;
     igraph_matrix_init(&k_matrix, n_query_graphs, n_database_graphs);
     igraph_matrix_null(&k_matrix);*/
-    omp_set_num_threads(6);
     //iterate to compute each query image to database image values
     for (int h = 0; h < h_max; h++) {
         //iterate over all stored graphs
@@ -274,7 +279,7 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
                         if (inv1.count(val) && inv2.count(val)) {
                             auto& vers1 = inv1[val];
                             auto& vers2 = inv2[val];
-                            double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], database_graphs[j - n_query_graphs], doc_index);
+                            double kernelval = robustKernelVal(vers1, vers2, this->graphs[i], database_graphs[j- n_query_graphs], doc_index);
                             
                             //raw_scores is only for debug
                             raw_scores[i][j - n_query_graphs] = raw_scores[i][j - n_query_graphs] + kernelval;
@@ -330,6 +335,7 @@ std::vector < std::vector<double>> kernel::robustKernel::robustKernelCompWithQue
        //        }   
        //    }
     helper::computeScore1(k_matrix, edgeNums, rawSelfKernel,tfidfWeight);
+    /*helper::computeScore3(k_matrix, rawSelfKernel);*/
     return k_matrix;
 }
 
@@ -471,10 +477,10 @@ void kernel::covisMap::addEntry(int image_id, colmap::FeatureVisualIDs& id) {
         std::cerr << "covisMap.addEntry: error: the entry vocab size unmatch the object.\n";
         return;
     }
-    if (image_id > invert_index_.size()) {
-        invert_index_.resize(image_id);
+    if (image_id > invert_index_.size()-1) {
+        invert_index_.resize(image_id+1);
     }
-    invert_index_[image_id].clear();
+    invert_index_[image_id].reset();
     invert_index_[image_id].resize(numCenters_);
     
     //loop through the ids and add to the invert index
@@ -491,6 +497,7 @@ void kernel::covisMap::Query(colmap::FeatureVisualIDs& qryId, std::vector<int>& 
         return;
     }
     boost::dynamic_bitset<uint8_t> clique(numCenters_);
+    clique.reset();
     for (Eigen::Index i = 0; i < qryId.ids.rows(); i++) {
         clique.set(qryId.ids(i, 1));
     }
@@ -1134,12 +1141,21 @@ void kernel::recurRobustKel::robustKernelCom(igraph_t& query_graph, igraph_t& so
         }
 
     }
-    igraph_simplify(&source_graph_record, 0, 1, 0);
-    igraph_simplify(&query_graph_record, 0, 1, 0);
+    igraph_attribute_combination_t comb;
+    igraph_attribute_combination(&comb,
+        "weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+        "", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+        IGRAPH_NO_MORE_ATTRIBUTES);
+
+    igraph_simplify(&source_graph_record, 0, 1, &comb);
+    igraph_simplify(&query_graph_record, 0, 1, &comb);
+    igraph_attribute_combination_destroy(&comb);
     fileManager::write_graph(source_graph_record, "source_graph","graphml");
     fileManager::write_graph(query_graph_record, "query_graph", "graphml");
     neighbor_vectors_i.clear();
     neighbor_vectors_j.clear();
+    igraph_destroy(&source_graph_record);
+    igraph_destroy(&query_graph_record);
 }
 
 std::vector<std::vector<float>> kernel::recurRobustKel::robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int>& source_indexes) {

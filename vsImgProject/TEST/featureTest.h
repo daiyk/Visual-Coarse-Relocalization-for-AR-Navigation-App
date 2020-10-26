@@ -1,9 +1,13 @@
 #pragma once
 #ifndef _FEATURETEST_H
 #define _FEATURETEST_H
+#include "nbhdGraph.h"
+#include <fstream>
 #include <StaticVRImg/fileManager.h>
 #include <StaticVRImg/extractor.h>
 #include <StaticVRImg/matcher.h>
+#include <StaticVRImg/FLANN.h>
+#include <StaticVRImg/graph.h>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
@@ -12,6 +16,7 @@
 #include <colmap/util/endian.h>
 #include <colmap/base/database.h>
 #include <colmap/feature/sift.h>
+
 
 using params = fileManager::parameters;
 template<typename _Tp, int _rows, int _cols, int _options, int _maxRows, int _maxCols>
@@ -30,6 +35,117 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
 		_src.copyTo(dst);
 	}
 }
+//void featureExtTest(){
+//	std::string imgPath = "E:\\datasets\\south-building\\images_database\\P1180141.JPG";
+//	colmap::Bitmap img;
+//	img.Read(imgPath, false);
+//	//test the extractor
+//	std::vector<colmap::Bitmap> imgs;
+//	imgs.push_back(img);
+//	std::vector<colmap::FeatureKeypoints> keypoints;
+//	std::vector<colmap::FeatureDescriptors> descripts;
+//	extractor::siftGPU_descips_compute_simple(imgs, keypoints, descripts);
+//
+//
+//}
+inline void flanntest(std::vector<std::string> query_paths, std::string database_path) {
+	std::string img_folder = fs::path(query_paths[0]).parent_path().string();
+	//loop over the database path and get the path for database images
+	std::vector<std::string> db_imgs;
+	fileManager::read_files_in_path(database_path, db_imgs);
+	if (db_imgs.empty()) {
+		std::cerr << "\nflanntest: error! db images are zero.";
+		return;
+	}
+	std::vector < cv::Mat> allDescripts;
+
+	std::ofstream flann_writer;
+	flann_writer.open("flannTestResult.csv", std::fstream::out | std::fstream::app);
+	flann_writer << "qry_img[ID]" << "," << "db_img[ID]" << "," << "score" << "\n";
+
+	//iterate through the query image paths and store for comparison
+	std::vector<std::string> qry_names;
+	for (int i = 0; i < query_paths.size(); i++) {
+		if (!fs::exists(fs::path(query_paths[i]))) {
+			std::cout << "\nflanntest: the query path " << query_paths[i] << " doesn't exist!";
+			continue;
+		}
+		qry_names.push_back(fs::path(query_paths[i]).filename().string());
+		auto grayImg = cv::imread(query_paths[i], cv::IMREAD_GRAYSCALE);
+		cv::Mat descripts;
+		std::vector<cv::KeyPoint> kpts;
+		try {
+			extractor::vlimg_descips_compute_simple(grayImg,descripts,kpts);
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			break;
+		};
+		allDescripts.push_back(descripts);
+	}
+	std::vector<std::vector<double>> scores(allDescripts.size(), std::vector<double>(db_imgs.size()));
+	for (int i = 0; i < db_imgs.size(); i++) {
+		auto dbImg = cv::imread(db_imgs[i], cv::IMREAD_GRAYSCALE);
+		cv::Mat dbDescripts;
+		std::vector < cv::KeyPoint> dbKpts;
+
+
+		try {
+			extractor::vlimg_descips_compute_simple(dbImg, dbDescripts, dbKpts);
+		}
+		catch (std::invalid_argument& e) {
+			std::cout << e.what() << std::endl;
+			break;
+		};
+
+
+		//do comparison with the qry images
+		for (int k = 0; k < allDescripts.size(); k++) {
+			std::vector < cv::DMatch> matches;
+			dbDescripts.convertTo(dbDescripts, CV_32F);
+			cv::Mat qryDescrips;
+			allDescripts[k].convertTo(qryDescrips, CV_32F);
+			FLANN::FLANNMatch(dbDescripts, qryDescrips, matches);
+			scores[k][i] = FLANN::FLANNScore(matches);
+		}
+	}
+	for (int i = 0; i < allDescripts.size(); i++) {
+		for (int j = 0; j < db_imgs.size(); j++) {
+			flann_writer << qry_names[i] << "," << j << "," << scores[i][j] << "\n";
+		}
+	}
+	
+}
+
+inline void nhhdGraphTest(std::vector<std::string> query_paths, std::string database_path) {
+	fileManager::covisOptions options;
+	options.database_path = database_path;
+	colmap::Database databs(options.database_path);
+	options.vocab_path = "E:\\vocab_tree_flickr100K_words32K.bin";
+	fs::path img(query_paths[0]);
+	std::string img_folder = img.parent_path().string();
+	options.image_path = img_folder;
+	options.numImageToKeep = 3;
+	options.image_list.clear();
+	if (query_paths.empty()) { std::cerr << "\nempty query_paths!"; return; }
+	for (int i = 0; i < 2; i++) {
+		fs::path imgpath(query_paths[i]);
+		options.image_list.push_back(imgpath.filename().string());
+	}
+	
+	//build nbhd object
+	nbhd::nbhdGraph graphObj(options);
+	while (true) {
+		int status = graphObj.Next();
+		if (status==0) {
+			std::cerr << "error happens during graphObj operations" << std::endl;
+			break;
+		}
+		if (status==1) {
+			break; //finish and break
+		}
+	}
+}
 inline void vocabReadTest(std::string &imgPath) {
 	//take the first arguments as image path
 	colmap::Bitmap imagereader, imagereader2;
@@ -41,11 +157,11 @@ inline void vocabReadTest(std::string &imgPath) {
 	colmap::SiftExtractionOptions options;
 	colmap::FeatureDescriptors colmap_descriptors;
 	colmap::FeatureKeypoints colmap_keypoints;
-
+	options.max_num_features = fileManager::parameters::maxNumFeatures;
 	//opencv reader images
 	auto img = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
 	cv::Mat imgBitmap(imagereader.Height(), imagereader.Width(), CV_8U);
-	auto dataFloat = imagereader2.ConvertToColMajorArray();
+	auto dataFloat = imagereader2.ConvertToRowMajorArray();
 
 	//print the image difference
 	std::cout << "\nreader width" << imagereader.Width() <<"\nreader height"<< imagereader.Height() <<"\n"<<(int)dataFloat.size();
@@ -54,7 +170,7 @@ inline void vocabReadTest(std::string &imgPath) {
 	//transform bitmap to opencv image
 	for (int i = 0; i < imagereader2.Height(); i++) {
 		for (int j = 0; j < imagereader2.Width(); j++) {
-			imgBitmap.at<uchar>(j, i) = dataFloat[j + i* imagereader2.Width()];
+			imgBitmap.at<uchar>(i, j) = dataFloat[j + i* imagereader2.Width()];
 		}
 	}
 	//cv::namedWindow("opencv img ", cv::WINDOW_NORMAL);// Create a window for display.
@@ -70,12 +186,14 @@ inline void vocabReadTest(std::string &imgPath) {
 	//	std::cout << i << " th bitmap" << (int)dataFloat[i] << std::endl;
 	//}
 	
-	colmap::ExtractSiftFeaturesCPU(options,imagereader,&colmap_keypoints,&colmap_descriptors);
+	/*colmap::ExtractSiftFeaturesCPU(options,imagereader,&colmap_keypoints,&colmap_descriptors);*/
 	
 	//get the number of keypoints
-	std::cout << "\nnumber of keypoints extracted by colmap SIFT: " << colmap_keypoints.size();
+	/*std::cout << "\nnumber of keypoints extracted by colmap SIFT: " << colmap_keypoints.size();*/
+	std::string databasePath = "E:\\datasets\\south-building\\southbuildingdatabase.db";
+	colmap::Database* db = new colmap::Database(databasePath);
 	
-	std::string databasePath = "E:\\datasets\\gerrard-hall\\gerrard-hall-short\\gerrard-hall-short.db";
+	
 	std::string vocabPath = "E:\\vocab_tree_flickr100K_words32K.bin";
 	std::ifstream file(vocabPath, std::ios::binary);
 	CHECK(file.is_open()) << vocabPath;
@@ -83,7 +201,7 @@ inline void vocabReadTest(std::string &imgPath) {
 	const uint64_t cols = colmap::ReadBinaryLittleEndian<uint64_t>(&file);
 
 
-	//read descriptors
+	//read dict centroids
 	cv::Mat dict(rows, cols, CV_8U);
 	dict.reserveBuffer(cols * rows); // reserve space for 
 	for (size_t i = 0; i < rows; i++) {
@@ -95,14 +213,19 @@ inline void vocabReadTest(std::string &imgPath) {
 	//use own sift extractor
 	cv::Mat cv_descriptors;
 	std::vector<cv::KeyPoint> cv_keypoints;
-	extractor::vlimg_descips_compute_simple(imgBitmap,cv_descriptors,cv_keypoints);
-	std::cout << "\nown sift extractor extracts keypoints: " << cv_keypoints.size();
 
+	auto testImg = db->ReadImage(1);
+	std::cout<<"\ntest image is: "<<testImg.Name();
+	colmap_descriptors = db->ReadDescriptors(1);
+	/*auto kpts_ = database.ReadKeypoints(1);*/
+	extractor::vlimg_descips_compute_simple(imgBitmap,cv_descriptors,cv_keypoints);
+	/*std::cout << "\nown sift extractor extracts keypoints: " << cv_keypoints.size();*/
+	
 	//compares the descriptors: print it out
 	for (int i = 0; i < 4; i++) {
-		std::cout << "\n\ncolmap descripts: " << colmap_descriptors.row(i).cast<float>() << "\ncolmap keyPoints: "<<colmap_keypoints[i].x<<"  "<< colmap_keypoints[i].y<<"  "<<std::sqrt(std::pow(colmap_keypoints[i].a11,2)
-			+ std::pow(colmap_keypoints[i].a21, 2));
-		std::cout << "\n\ncv descripts: " << cv_descriptors.row(cv_descriptors.rows-1-i) << "\ncv keypoints: "<<cv_keypoints[cv_keypoints.size()-1-i].pt.x<<"  "<< cv_keypoints[cv_keypoints.size() - 1 - i].pt.y<<"  "<<cv_keypoints[cv_keypoints.size() - 1 - i].size;
+		std::cout << "\ncolmap descripts: "<<colmap_descriptors.rows()<<"\n" << colmap_descriptors.row(colmap_descriptors.rows()-1-i).cast<int>();// << "\ncolmap keyPoints: " << kpts_[i].x << "  " << kpts_[i].y << "  " << std::sqrt(std::pow(kpts_[i].a11, 2)
+			//+ std::pow(colmap_keypoints[i].a21, 2));
+		std::cout << "\n\ncv descripts: "<< cv_descriptors.rows<<"\n" << cv_descriptors.row(cv_descriptors.rows-i-1) << "\ncv keypoints: "<<cv_keypoints[cv_keypoints.size()-1-i].pt.x<<"  "<< cv_keypoints[cv_keypoints.size() - 1 - i].pt.y<<"  "<<cv_keypoints[cv_keypoints.size() - 1 - i].size;
 	}
 
 
@@ -110,7 +233,8 @@ inline void vocabReadTest(std::string &imgPath) {
 	//test the visual id identifier working in the right way
 }
 inline void databaseTest() {
-	std::string databasePath = "E:\\datasets\\gerrard-hall\\gerrard-hall-short\\gerrard-hall-short.db";
+	/*std::string databasePath = "E:\\datasets\\gerrard-hall\\gerrard-hall-short\\gerrard-hall-short.db";*/
+	std::string databasePath = "E:\\datasets\\south-building\\southbuildingDB.db";
 	std::string vocabPath = "E:\\vocab_tree_flickr100K_words32K.bin";
 	std::ifstream file(vocabPath, std::ios::binary);
 	CHECK(file.is_open()) << vocabPath;
@@ -125,34 +249,48 @@ inline void databaseTest() {
 			dict.at<uint8_t>(i, j) = colmap::ReadBinaryLittleEndian<uint8_t>(&file);
 		}
 	}
+	matcher::colmapVisualIndex<> visualIndex;
+	visualIndex.Read(vocabPath);
+
 	//read database
 	colmap::Database geerardData(databasePath);
 	auto images = geerardData.ReadAllImages();
 	auto ids = geerardData.ReadVisualIDs(images[0].ImageId());
 	std::cout << "\ndictionary path: " << ids.dictPath << "\ndictionary size: " << ids.dictsize;
-	for (int i = 0; i < 1; i++) {
+	std::vector<std::pair<int, int>> imageid1, imageid2;
+	for (int i = 0; i < 2; i++) {
 		std::cout << "\nimageId: " << images[i].ImageId();
 		auto currentIds = geerardData.ReadVisualIDs(images[i].ImageId()).ids;
 		std::cout << "\ncolmap descriptor visual ids: \n";
-		for (int j = 0; j < 10; j++) {
-			std::cout << currentIds.row(j) << " ";
+		for (int j = 0; j < currentIds.rows(); j++) {
+			if (i == 0) {
+				imageid1.push_back({ currentIds(j,0),currentIds(j,1) });
+			}
+			if (i == 1) {
+				imageid2.push_back({ currentIds(j,0),currentIds(j,1) });
+			}
 		}
 		std::cout << "\ncolmap matches size: " << currentIds.rows();
 		//cv descriptor quantizing
 		//retrieve descriptor
-		auto cv_descriptor = geerardData.ReadDescriptors(images[i].ImageId());
-		cv::Mat cv_descrip(cv_descriptor.rows(),cv_descriptor.cols(),CV_32S);
 		
+		auto cv_descriptor = geerardData.ReadDescriptors(images[i].ImageId());
+		auto cv_keypoints = geerardData.ReadKeypoints(images[i].ImageId());
+		/*cv::Mat cv_descrip(cv_descriptor.rows(),cv_descriptor.cols(),CV_32S);	
 		eigen2cv(cv_descriptor, cv_descrip);
+		auto matches = matcher::colmapFlannMatcher(cv_descrip, dict, 1);*/
 
-		auto matches = matcher::colmapFlannMatcher(cv_descrip, dict, 1);
+		auto matches = visualIndex.FindWordIds(cv_descriptor, 1, 256, -1);
+
 
 		std::cout << "\ncv descriptor visual ids: \n";
 		for (int j = 0; j < 10; j++) {
-			std::cout << matches[j].queryIdx<<"  "<<matches[j].trainIdx << " ";
+			std::cout << j<<"  "<<matches(j,0) << " ";
 			
 		}
 		std::cout << "\ncv matches size: " << matches.size();
+		std::cout << "\n cv_descriptors size: " << cv_descriptor.rows();
+		std::cout << "\n cv_keypoints size: " << cv_keypoints.size();
 	}
 	
 }

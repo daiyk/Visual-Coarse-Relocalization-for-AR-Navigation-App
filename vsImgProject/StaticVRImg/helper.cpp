@@ -71,3 +71,84 @@ void helper::computeScore2(std::vector<std::vector<double>>& raw_scores, std::ve
             }
         }
 }
+void helper::computeScore3(std::vector<std::vector<double>>& raw_scores, std::vector<double>& raw_self_scores) {
+    int n_query = raw_scores.size();
+    int n_database = raw_scores[0].size();
+    for (int i = 0; i < n_query; i++)
+        for (int j = 0; j < n_database; j++) {
+            if (!isEqual(raw_self_scores[i], 0.0) && !isEqual(raw_self_scores[j + n_query], 0.0)) {
+                double selfNormi, selfNormj;          
+                selfNormi = raw_self_scores[i];
+                selfNormj = raw_self_scores[j + n_query];
+                raw_scores[i][j] = raw_scores[i][j] / std::sqrt(selfNormi * selfNormj);
+            }           
+        }
+}
+
+
+
+void helper::ExtractTopFeatures(colmap::FeatureKeypoints* keypoints, colmap::FeatureVisualIDs* ids, const size_t num_features=-1) {
+
+    if (keypoints->size() != ids->ids.rows()) {
+        throw std::invalid_argument("Error: visual ids and keypoints are not in the same length.");
+    }
+    if (num_features == 0) {
+        throw std::invalid_argument("Error: num of features need to be non-zero");
+    }
+
+    if (static_cast<size_t>(ids->ids.rows()) <= num_features || num_features==-1) {
+        return;
+    }
+
+    colmap::FeatureKeypoints top_scale_keypoints;
+    colmap::FeatureVisualids top_scale_ids;
+
+   /*std::vector<std::pair<size_t, float>> scales;
+    scales.reserve(static_cast<size_t>(keypoints->size()));
+    for (size_t i = 0; i < keypoints->size(); ++i) {
+        scales.emplace_back(i, (*keypoints)[i].ComputeScale());
+    }
+
+    std::partial_sort(scales.begin(), scales.begin() + num_features,
+        scales.end(),
+        [](const std::pair<size_t, float> scale1,
+            const std::pair<size_t, float> scale2) {
+                return scale1.second > scale2.second;
+        });*/
+
+    top_scale_keypoints.reserve(num_features);
+    top_scale_ids.resize(num_features, ids->ids.cols());
+    int top_scale_num_feats = 0;
+    for (int i = 0; i < num_features; i++) {
+        int kp_index = (*keypoints).size() - num_features+i;
+        top_scale_keypoints.push_back((*keypoints)[kp_index]);
+        top_scale_ids(i, 1) = ids->ids(kp_index, 1);
+        top_scale_ids(i, 0) = i;
+    }
+    /*for (size_t i = 0; i < num_features; ++i) {
+        featRes.push_back(scales[i].first);
+        top_scale_keypoints[i] = (*keypoints)[scales[i].first];
+        top_scale_ids.row(i) = ids->ids.row(scales[i].first);
+    }*/
+
+    *keypoints = top_scale_keypoints;
+    ids->ids = top_scale_ids;   
+}
+std::unordered_set<int> helper::pickSet(int N, int k, std::mt19937& gen)
+{
+    std::unordered_set<int> elems;
+    for (int r = N - k; r < N; ++r) {
+        int v = std::uniform_int_distribution<>(1, r)(gen);
+
+        // there are two cases.
+        // v is not in candidates ==> add it
+        // v is in candidates ==> well, r is definitely not, because
+        // this is the first iteration in the loop that we could've
+        // picked something that big.
+
+        if (!elems.insert(v).second) {
+            elems.insert(r);
+        }
+    }
+    return elems;
+}

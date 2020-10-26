@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <Eigen/Core>
+#include <unordered_map>
 #include <opencv2/core.hpp>
 #include <boost/dynamic_bitset.hpp>
 #include <feature/types.h>
@@ -18,7 +19,8 @@ namespace kernel {
 
 		covisMap(int kCenters, int dbSize = 1000):numCenters_(kCenters), numDBImgs_(dbSize) {
 			igraph_sparsemat_init(&this->map, kCenters, 1, kCenters * 500);
-			this->inverted_tree.resize(kCenters);
+			this->inverted_tree.resize(numCenters_);
+			this->invert_index_.resize(numDBImgs_+1); //because imageId is start with 1
 		};
 		~covisMap() { igraph_sparsemat_destroy(&this->map); }
 		//add labels in mygraph to inverted tree and covisibility map

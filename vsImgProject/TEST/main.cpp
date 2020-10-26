@@ -37,7 +37,7 @@ int main(int argc, const char* argv[]) {
 	std::cout << "argument number: " << argc;
 	if (argc < 2) {
 		//std::cout << "please provides the path to UKBench imagesets" << std::endl;
-		///*graphExtendTest();*/
+		graphExtendTest();
 		/*covdetTest();*/
 		/*autoTest();*/
 		/*probModel::databaseManager db("E:\\datasets\\gerrard-hall\\gerrard-hall\\database.db");
@@ -54,6 +54,7 @@ int main(int argc, const char* argv[]) {
 		/*UKB::UKtrain(argc,argv,1000);*/
 		std::string imgPath = argv[1];
 		vocabReadTest(imgPath);
+
 		/*databaseTest();*/
 		return 0;
 	}
@@ -61,7 +62,12 @@ int main(int argc, const char* argv[]) {
 		/*UKB::UKRecurTest(argc, argv, params::sampleSize, params::imgsetSize);*/
 		/*UKB::UKtest(argc, argv, params::sampleSize, params::imgsetSize);*/
 		//test two imgs
-		recurKernelTestWithImage(argc, argv);
+		/*recurKernelTestWithImage(argc, argv);*/
+		std::vector<std::string> qry_imgs;
+		fileManager::read_files_in_path(argv[1],qry_imgs);
+		/*nhhdGraphTest(qry_imgs,argv[2]);*/
+		flanntest(qry_imgs, argv[2]);
+
 	}
 	if(argc==4)
 	{

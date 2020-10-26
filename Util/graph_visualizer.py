@@ -206,9 +206,9 @@ if __name__=="__main__":
     print(paths)
     scale = args.scl
     need_img=args.need_img
-    plot_full_set = False #means to delete vertex alone node(without any edge)
-    recurKernelPlot(paths,scale, True,need_img=True)
-    #read_graph(paths,scale, plot_full_set,need_img=need_img)
+    plot_full_set = False #means to delete sets of vertex / node(that without any edge)
+    # recurKernelPlot(paths,scale, True,need_img=True)
+    read_graph(paths,scale, plot_full_set,need_img=need_img)
   
    
 

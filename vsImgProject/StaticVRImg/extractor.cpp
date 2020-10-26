@@ -4,12 +4,16 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <set>
-#include <filesystem>
+#include <boost/filesystem.hpp>
 #include <omp.h>
 #include "extractor.h"
 #include "fileManager.h"
 #include "helper.h"
 
+//#include "util/misc.h"
+//#include "util/opengl_utils.h"
+//#include <SiftGPU/SiftGPU.h>
+//#include <feature/sift.h>
 
 extern "C" {
     #include "vl/sift.h"
@@ -18,7 +22,7 @@ extern "C" {
 }
 using namespace std;
 using namespace cv;
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 using params = fileManager::parameters;
 #ifdef HAVE_OPENCV_XFEATURES2D
 #include <opencv2/xfeatures2d.hpp>
@@ -342,7 +346,7 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
 
         const auto* keypoints = vl_sift_get_keypoints(vl_sift);
         if (keyPtsNum == 0) {
-            result = vl_sift_process_next_octave(vl_sift); //zero keypoints loop to next octave layers
+            result = vl_sift_process_next_octave(vl_sift); //zero keypoint obatained than loop to next octave layers
             continue;
         }
         int current_levels = -1;
@@ -384,7 +388,6 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     }
 
     //iterate through the keypoints container and check the num limits
-
     int numKpts = 0;
     int levelToKeep = 0;
     for (int i = keyPointsNums.size() - 1; i >= 0; i--) {
@@ -399,14 +402,14 @@ void extractor::vlimg_descips_compute_simple(Mat& img1, Mat& Descripts, std::vec
     Descripts.reserve(numKpts * params::maxNumOrient);
     cv_keypoints.reserve(numKpts * params::maxNumOrient);
     //iterate and add kpts and descripts to the container
-    for (int k = imgKpts.size() - 1; k >= 0; k--) {
+    for (int k = 0; k < imgKpts.size(); k++) {
         if (imgKpts[k].class_id >= levelToKeep) {
             cv_keypoints.push_back(imgKpts[k]);
             Descripts.push_back(imgDescrips.row(k));
         }
         else
         {
-            break;
+            continue;
         }
     }
     Descripts = TransformVLFeatToUBCFeatureDescriptors(Descripts);
@@ -552,7 +555,6 @@ void extractor::covdetSIFT(cv::Mat &img, Mat& descriptors, std::vector<KeyPoint>
         /*cv::Mat tempDesript(1, 128, CV_32F);
         flip_descriptor(tempDesript, currentDescrip.ptr<float>(0));*/
         descrips.push_back(currentDescrip);
-        
     }
     
     //sort and only stores the keypoints/descriptors with the highest response. From highest to smallest
@@ -570,10 +572,43 @@ void extractor::covdetSIFT(cv::Mat &img, Mat& descriptors, std::vector<KeyPoint>
     else {
         descriptors = descrips.clone();
     }
-
+    //
     vl_sift_delete(sift);
     vl_covdet_delete(covdet);
 }
 
-
+//void extractor::siftGPU_descips_compute_simple(std::vector<colmap::Bitmap> queryImgs, std::vector<colmap::FeatureKeypoints>& kpts, std::vector<colmap::FeatureDescriptors>& descripts) {
+//    colmap::SiftExtractionOptions sift_options_;
+//    sift_options_.max_num_features = fileManager::parameters::maxNumFeatures;
+//    sift_options_.max_num_orientations = fileManager::parameters::maxNumOrient;
+//    std::unique_ptr<colmap::OpenGLContextManager> opengl_context_;
+//    CHECK(opengl_context_);
+//    opengl_context_->MakeCurrent();
+//    std::vector<int> gpu_indices = colmap::CSVToVector<int>(sift_options_.gpu_index);
+//    CHECK_GT(gpu_indices.size(), 0);
+//    
+//    auto sift_gpu_options = sift_options_;
+//    auto& gpu_index = gpu_indices[0];
+//    sift_gpu_options.gpu_index = std::to_string(gpu_index);
+//
+//    kpts.clear();
+//    kpts.resize(queryImgs.size());
+//    descripts.clear();
+//    descripts.resize(queryImgs.size());
+//    std::unique_ptr<SiftGPU> sift_gpu;
+//    if (sift_options_.use_gpu) {
+//        sift_gpu.reset(new SiftGPU);
+//        if (!CreateSiftGPUExtractor(sift_options_, sift_gpu.get())) {
+//            std::cerr << "ERROR: SiftGPU not fully supported." << std::endl;
+//            return;
+//        }
+//    }
+//
+//    //extract features for the query images
+//    for (int i = 0; i < queryImgs.size();i++) {
+//        bool success = ExtractSiftFeaturesGPU(
+//            sift_options_, queryImgs[i], sift_gpu.get(),
+//            &kpts[i], &descripts[i]);
+//    }
+//}
 

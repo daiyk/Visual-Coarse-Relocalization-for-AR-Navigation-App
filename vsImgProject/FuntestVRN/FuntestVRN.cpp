@@ -31,7 +31,7 @@ int main(int argc, const char* argv[]) {
     for (int i = 1; i < argc; i++) {
         cout << " ->" << argv[i] << endl;
     }
-    filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
+    boost::filesystem::path user_set("D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json");
     fileManager::read_user_set(user_set);
     std::vector<std::string> trainPaths, testPaths;
     fileManager::ArgList readResult;

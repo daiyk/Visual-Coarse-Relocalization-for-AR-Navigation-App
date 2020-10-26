@@ -3,7 +3,10 @@
 #define _HELPER_H
 #pragma warning(disable : 4996) //_CRT_SECURE_NO_WARNINGS
 #include <opencv2/core.hpp>
+#include <unordered_set>
 #include <ctime>
+#include <random>
+#include <colmap/feature/types.h>
 namespace helper {
 	//helper function to get current date
 	std::string dateTime();
@@ -17,12 +20,21 @@ namespace helper {
 	//transform descriptor from float to unsigned bits
 	cv::Mat DescriptorFloatToUint(cv::Mat descripts);
 
+	//truncate features and reserve top scales features
+	void ExtractTopFeatures(colmap::FeatureKeypoints* keypoints, colmap::FeatureVisualIDs* ids, const size_t num_features);
+
+
 	//1th score functions: multiplicative
 	void computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores, bool tfidfWeight = false);
 	
 	//2th score function: discriminative query score based
 	void computeScore2(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores);
 
+	//3th score computing function
+	void computeScore3(std::vector<std::vector<double>>& raw_scores, std::vector<double>& raw_self_scores);
+
+	//random pick up n elements
+	std::unordered_set<int> pickSet(int N, int k, std::mt19937& gen);
 	inline std::string cvtype2str(int type) {
 		std::string r;
 

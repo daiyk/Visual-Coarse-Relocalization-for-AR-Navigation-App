@@ -1,6 +1,5 @@
 #include "fileManager.h"
 #include <iostream>
-#include <filesystem>
 #include <fstream>
 #include "helper.h"
 #include <igraph.h>
@@ -9,7 +8,6 @@ using ArgList = fileManager::ArgList;
 using ArgType = fileManager::ArgType;
 using namespace cv;
 using namespace std;
-
 
 //default user set location
 fs::path fileManager::user_set_default = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\User\\vrn_set.json";
@@ -26,7 +24,7 @@ int fileManager::parameters::numOfItera = 20;
 int fileManager::parameters::descriptDim = 128;
 double fileManager::parameters::accuracy = 1e-3;
 double fileManager::parameters::siftEdgeThres = 10.0; // sift paper setting
-double fileManager::parameters::siftPeakThres = 0.03; // sift paper setting
+double fileManager::parameters::siftPeakThres = 0.02 / fileManager::parameters::noctaveLayer; // sift paper setting
 double fileManager::parameters::imgScale = 1.0; // image scaling during detection and drawing
 int fileManager::parameters::maxNumOrient = 4; // max number orientation extracted by vlfeat covdet feature detector, default 4 for SIFT
 int fileManager::parameters::maxNumFeatures = -1;// max number of features allowed in the detection
@@ -349,17 +347,122 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::tfidfPath = jsonlist.value("tfidfPath", fileManager::parameters::tfidfPath);
 }
 
+//class graphManager
+bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
+
+    if (!igraph_cattribute_has_attr(&mygraph, IGRAPH_ATTRIBUTE_VERTEX, "label")) {
+        std::cerr << "\ngraphManager.writeGraph: missing \"label\" vertex attributes.\n";
+        return false;
+    }
+    if (!igraph_cattribute_has_attr(&mygraph, IGRAPH_ATTRIBUTE_EDGE, "weight")) {
+        std::cerr << "\ngraphManager.writeGraph: missing \"weight\" edge attributes.\n";
+        return false;
+    }
+    if (GAN(&mygraph, "n_vertices") == 0) {
+        std::cerr << "\ngraphManager.writeGraph: empty graph, stop writeing.\n";
+        return false;
+    }
+    if (graph_name_ == "") {
+        std::cerr << "\ngraphManager.writeGraph: no graph name specified.\n";
+        return false;
+    }
+    this->iobuffer_["name"] = graph_name_;
+
+    //write vertices
+    this->iobuffer_["verices"] = (int)GAN(&mygraph, "n_vertices");
+    //write label
+    std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> labels(new igraph_vector_t(), &igraph_vector_destroy);
+    igraph_vector_init(labels.get(), 0);
+    VANV(&mygraph, "label", labels.get());
+    std::vector<int> lab_vec;
+    lab_vec.reserve(igraph_vector_size(labels.get()));
+    for (int i = 0; i < igraph_vector_size(labels.get()); i++) {
+        lab_vec.push_back(VECTOR(*labels)[i]);
+    }
+    if (!writeLabels(lab_vec))
+        return false;
+
+    //write weighrs
+    std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> weights(new igraph_vector_t(), &igraph_vector_destroy);
+    igraph_vector_init(weights.get(), 0);
+    EANV(&mygraph, "weight", weights.get());
+    std::vector<int> wei_vec;
+    wei_vec.reserve(igraph_vector_size(weights.get()));
+    for (int i = 0; i < igraph_vector_size(weights.get()); i++) {
+        wei_vec.push_back(VECTOR(*weights)[i]);
+    }
+    if (!writeWeights(wei_vec)) {
+        return false;
+    }
+
+    //write Edges
+    std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> edges(new igraph_vector_t(), &igraph_vector_destroy);
+    igraph_vector_init(edges.get(), 0);
+    igraph_get_edgelist(&mygraph, edges.get(), false);
+    std::vector<int> edge_vec;
+    edge_vec.reserve(igraph_vector_size(edges.get()));
+    for (int i = 0; i < igraph_vector_size(edges.get()); i++) {
+        edge_vec.push_back(VECTOR(*edges)[i]);
+    }
+    if (!writeEdges(edge_vec)) {
+        return false;
+    }
+
+    auto jsonbin = json::to_bson(this->iobuffer_);
+
+    //write to file
+    std::ofstream fp;
+    boost::filesystem::path root_path(this->root_path_);
+    std::string file_path = (root_path / (graph_name_ + ".bin")).string();
+    fp.open(file_path, std::ios::out | std::ios::binary);
+    fp.write((char*)jsonbin.data(), jsonbin.size());
+
+}
+bool fileManager::graphManager::writeLabels(const std::vector<int>& labels) {
+    if (this->iobuffer_.contains("label"))
+        this->iobuffer_.erase("label");
+    this->iobuffer_["label"] = labels;
+}
+
+bool fileManager::graphManager::writeEdges(const std::vector<int>& edges) {
+    if (this->iobuffer_.contains("edge"))
+        this->iobuffer_.erase("edge");
+    this->iobuffer_["edge"] = edges;
+}
+bool fileManager::graphManager::writeWeights(const std::vector<int>& weights) {
+    if (this->iobuffer_.contains("weight"))
+        this->iobuffer_.erase("weight");
+    this->iobuffer_["weight"] = weights;
+}
+bool fileManager::graphManager::readGraph(std::string path) {
+    std::ifstream fp(path, std::ios::binary);
+    std::vector<uint8_t> gBson(
+        (std::istreambuf_iterator<char>(fp)),
+        std::istreambuf_iterator<char>());
+    //read to buffer
+    this->iobuffer_ = json::from_bson(gBson);
+
+    //check properties
+    if (!iobuffer_.contains("name")) {
+        std::cerr << "\ngraphManager.readGraph: missing graph name\n";
+    }
+
+    if (!iobuffer_.contains("label") || !iobuffer_.contains("weight") || !iobuffer_.contains("edge")) {
+        std::cerr << "\ngraphManager.readGraph: missing graph's components.\n";
+    }
+}
+
 /*
     A test debug function
 */
 void filecreate() {
-    std::filesystem::path curPath = std::filesystem::current_path();
-    std::filesystem::path resultPath;
-    for (auto it : std::filesystem::recursive_directory_iterator(curPath)) {
+    boost::filesystem::path curPath = boost::filesystem::current_path();
+    boost::filesystem::path resultPath;
+    for (auto it : boost::filesystem::recursive_directory_iterator(curPath)) {
         if (it.path().stem().string() == "vsImgProject") {
             resultPath = it.path();
             break;
         }
     }
-    std::filesystem::create_directory(resultPath.parent_path() / "Result");
+    boost::filesystem::create_directory(resultPath.parent_path() / "Result");
 }

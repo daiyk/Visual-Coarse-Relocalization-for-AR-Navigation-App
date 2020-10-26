@@ -18,6 +18,8 @@ namespace graph {
 	bool extendDemo(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::DMatch>& bestMatches);
 	bool extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::KeyPoint>& srckpts, std::vector<cv::KeyPoint>& qrykpts, std::vector<cv::DMatch>& bestMatches);
 	bool extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::DMatch>& bestMatches);
+
+	bool extend1to2(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector <cv::DMatch>& matches);
 }
 
 #endif

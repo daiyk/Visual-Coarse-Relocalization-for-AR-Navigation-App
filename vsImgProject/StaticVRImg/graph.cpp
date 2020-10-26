@@ -39,13 +39,13 @@ bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts
 	igraph_bool_t loops = false;
 	if (matches.size() == 0) {
 		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
-		SETGAN(&mygraph, "vertices", 0);
+		SETGAN(&mygraph, "n_vertices", 0);
 		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
 		return true;
 	}
 
 	SETGAS(&mygraph, "name", "kernelfullgraph");  // set graph name attribute
-	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
+	SETGAN(&mygraph, "n_vertices", n_vertices); // set vertices number attribute
 	int status = igraph_empty(&mygraph, n_vertices, IGRAPH_UNDIRECTED);
 
 	//add attributes like distance, labels and so on
@@ -106,15 +106,15 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 	//no matching label find empty graph with 0 vertice return
 	if (matches.size() == 0) {
 		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
-		SETGAN(&mygraph, "vertices", 0);
+		SETGAN(&mygraph, "n_vertices", 0);
 		SETGAS(&mygraph, "name", "UNDEFINED");
 		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
 		return true;
 	}
 
-	SETGAS(&mygraph, "name", "fullgraph");  // set graph name attribute
-	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
 	int status = igraph_full(&mygraph, n_vertices, false, loops);
+	SETGAS(&mygraph, "name", "fullgraph");  // set graph name attribute
+	SETGAN(&mygraph, "n_vertices", n_vertices); // set vertices number attribute
 
 	//add attributes like distance, labels and so on
 	if (status == IGRAPH_EINVAL) {
@@ -142,14 +142,16 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 	SETVANV(&mygraph, "label", &lab_vec);
 
 	//igraph init weight attributes
-	std::vector<igraph_real_t> w(n_vertices);
+	igraph_simplify(&mygraph, 1, 1, 0);
+	int n_edges = igraph_ecount(&mygraph);
+	std::vector<igraph_real_t> w(n_edges);
 	igraph_real_t* weights = w.data();
-	for (size_t i = 0; i < n_vertices; i++) {
+	for (size_t i = 0; i < n_edges; i++) {
 		w[i] = 1.0;
 	}
 	igraph_vector_t weight_vec;
-	igraph_vector_view(&weight_vec, weights, n_vertices);
-	igraph_simplify(&mygraph, true, true, 0);
+	igraph_vector_view(&weight_vec, weights, n_edges);
+	SETEANV(&mygraph, "weight", &weight_vec);
 	return true;
 }
 
@@ -166,7 +168,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	//to ensure the graph building process, for zero matching graphs return empty graph
 	if (matches.size() == 0) {
 		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
-		SETGAN(&mygraph, "vertices", 0);
+		SETGAN(&mygraph, "n_vertices", 0);
 		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
 		return true;
 	}
@@ -175,7 +177,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	
 	igraph_empty(&mygraph,n_vertices,IGRAPH_UNDIRECTED);
 	SETGAS(&mygraph, "name", "kernelGraph");  // set graph name attribute
-	SETGAN(&mygraph, "vertices", n_vertices); // set vertices number attribute
+	SETGAN(&mygraph, "n_vertices", n_vertices); // set vertices number attribute
 	// add more information to the graph, like the vertices number and edge number
 
 	//define container for keypoints and compute distance
@@ -270,14 +272,20 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_add_edges(&mygraph, &edge_vec, 0);
 	SETGAN(&mygraph, "edges", igraph_ecount(&mygraph)); //set edge number attribute
 
-	//set edge weoght attributes, can be deleted later
+	//set edge weight attributes, can be deleted later
 	std::vector<igraph_real_t> eweight(igraph_ecount(&mygraph), 1.0);
 	igraph_real_t* edgeW = eweight.data();
 	igraph_vector_t eweight_vec;
 	igraph_vector_view(&eweight_vec, edgeW, igraph_ecount(&mygraph));
 	SETEANV(&mygraph, "weight", &eweight_vec);
 
-	igraph_simplify(&mygraph, true, true, 0);
+	igraph_attribute_combination_t comb;
+	igraph_attribute_combination(&comb,
+		"weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+		"", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+		IGRAPH_NO_MORE_ATTRIBUTES);
+
+	igraph_simplify(&mygraph, true, true, &comb);
 	/*std::cout << " ->graph building spend " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec...." << std::endl;*/
 	return true;
 
@@ -553,11 +561,13 @@ bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv:
 	return true;
 }
 
+//bestMatches should be query_id(extend graph) to train_id(sourceGraph)
 bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv::DMatch>& bestMatches) {
 	igraph_init();
 	if (bestMatches.size() == 0) {
 		return false;
 	}
+	std::vector < igraph_real_t > new_edge_ids;
 	//source graph vertices number
 	int n_srcVertices = GAN(&sourceGraph, "n_vertices");
 
@@ -576,38 +586,51 @@ bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv:
 	VANV(&sourceGraph, "label", srcLabel.get());
 	VANV(&extendGraph, "label", exdLabel.get());
 
+	/*std::vector<int> labels, labele;
+	for (int k = 0; k < igraph_vector_size(srcLabel.get()); k++) {
+		labels.push_back(VECTOR(*srcLabel)[k]);
+	}
+	for (int k = 0; k < igraph_vector_size(exdLabel.get()); k++) {
+		labele.push_back(VECTOR(*exdLabel)[k]);
+	}*/
+
 	//count the total number of vertices of the new graph
 	int n_mergedVectirces = n_srcVertices + n_exdVertices - bestMatches.size();
+	//reserve space for new edge ids
+	new_edge_ids.reserve((n_exdVertices-bestMatches.size())*(n_exdVertices-1));
 
 	//merge graphs to the source graph
 	igraph_add_vertices(&sourceGraph, n_mergedVectirces - n_srcVertices, 0);
-
 	//inliers map that stores the corresponding vertices of the two graphs
-	std::map<int, int> inliers, outliers;
+	std::unordered_map<int, int> inliers, outliers;
 	for (int i = 0; i < bestMatches.size(); i++) {
-		inliers.insert({ bestMatches[i].queryIdx,bestMatches[i].trainIdx });
+		inliers.insert({ bestMatches[i].queryIdx,bestMatches[i].trainIdx }); //queryId = exdGraph
 	}
 
 	//build outliers map
 	int counter = 0;
 	for (int i = 0; i < n_exdVertices; i++) {
-		if (inliers.find(i) == inliers.end()) {
+		if (inliers.find(i) == inliers.end()) { //cannot find the queryId = exdGraph_node_Id
 			outliers.insert({ i,n_srcVertices + counter });
 			counter++;
 		}
 	}
 	//check inliers, accmulate and merge edge weight
-	for (int i = 0; i < n_exdVertices; i++) {
-		for (int j = 0; j < n_exdVertices; j++) {
-			igraph_integer_t eid;
-			igraph_get_eid(&extendGraph, &eid, i, j, IGRAPH_UNDIRECTED, false);
-
-			//no edge found then continue
-			if (eid == -1) {
+	for (int i = 0; i < n_exdVertices-1; i++) {
+		for (int j = i+1; j < n_exdVertices; j++) {
+			//igraph_integer_t eid;
+			//igraph_get_eid(&extendGraph, &eid, i, j, IGRAPH_UNDIRECTED, false);
+			////no edge found then continue
+			//if (eid == -1) {
+			//	continue;
+			//}
+			igraph_bool_t connected;
+			igraph_are_connected(&extendGraph, i, j, &connected);
+			if (!connected) {
 				continue;
 			}
 			int map_i, map_j; //mapped exdGraph index in mergedGraph 
-			auto weight = EAN(&extendGraph, "weight", eid);
+			/*auto weight = EAN(&extendGraph, "weight", eid);*/
 			if (inliers.find(i) != inliers.end()) {
 				map_i = inliers.at(i);
 			}
@@ -624,23 +647,171 @@ bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv:
 				map_j = outliers.at(j);
 			}
 			//check Edge_ij existence
-			igraph_integer_t srcEid;
-			igraph_get_eid(&sourceGraph, &srcEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
-			if (srcEid != -1) {
-				//means the edge is inliers edge, merge weight with source graph 
-				SETEAN(&sourceGraph, "weight", srcEid, EAN(&sourceGraph, "weight", srcEid) + weight);
-			}
-			else {
-				//add new edge and weight
-				igraph_add_edge(&sourceGraph, map_i, map_j);
-				igraph_get_eid(&sourceGraph, &srcEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
-				SETEAN(&sourceGraph, "weight", srcEid, weight);
+			/*igraph_integer_t srcEid;
+			igraph_bool_t connected;
+			igraph_are_connected(&sourceGraph,map_i,map_j,&connected);*/
+			new_edge_ids.push_back(map_i);
+			new_edge_ids.push_back(map_j);
+			//if (connected) {
+			//	igraph_get_eid(&sourceGraph, &srcEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+			//	//means the edge is inliers edge, merge weight with source graph 
+			//	SETEAN(&sourceGraph, "weight", srcEid, EAN(&sourceGraph, "weight", srcEid) + weight);
+			//}
+			//else {
+			//	//add new edge and weight
+			//	igraph_add_edge(&sourceGraph, map_i, map_j);
+			//	igraph_integer_t newEid;
+			//	igraph_get_eid(&sourceGraph, &newEid, map_i, map_j, IGRAPH_UNDIRECTED, false);
+			//	SETEAN(&sourceGraph, "weight", newEid, weight);
+			//}
+		}
+	}
+
+	//add edges for the new generated graph
+	int old_edges_num = igraph_ecount(&sourceGraph);
+	/*igraph_vector_t old_weights;
+	igraph_vector_init(&old_weights,0);
+	EANV(&sourceGraph, "weight", &old_weights);*/
+
+	igraph_vector_t igraph_new_edges;
+	igraph_vector_view(&igraph_new_edges, new_edge_ids.data(), new_edge_ids.size());
+	igraph_add_edges(&sourceGraph, &igraph_new_edges, 0);
+
+	//set the new vertices and add attributes for the outliers
+	igraph_vector_t gtypes, vtypes, etypes;
+	igraph_strvector_t gnames, vnames, enames;
+
+	igraph_vector_init(&gtypes, 0);
+	igraph_vector_init(&vtypes, 0);
+	igraph_vector_init(&etypes, 0);
+
+	igraph_strvector_init(&gnames, 0);
+	igraph_strvector_init(&vnames, 0);
+	igraph_strvector_init(&enames, 0);
+
+	igraph_cattribute_list(&extendGraph, &gnames, &gtypes, &vnames, &vtypes, &enames, &etypes);
+	
+	//iterate through the vertex attribuets and assign the attributes to the vertex
+	
+	for (int j = 0; j < igraph_strvector_size(&vnames); j++) {
+		if (VECTOR(vtypes)[j] == IGRAPH_ATTRIBUTE_NUMERIC){ 
+			for (auto& i : outliers) {
+				SETVAN(&sourceGraph, STR(vnames, j), i.second, VAN(&extendGraph, STR(vnames, j), i.first));
+				/*SETVAN(&sourceGraph, "label", i.second, VECTOR(*exdLabel)[i.first]);*/
 			}
 		}
 	}
-	//set the new vertices and add attributes for the outliers
-	for (auto& i : outliers) {
-		SETVAN(&sourceGraph, "label", i.second, VECTOR(*exdLabel)[i.first]);
+		
+
+	//set new sourceGraph property
+	SETGAN(&sourceGraph, "n_vertices", igraph_vcount(&sourceGraph));
+
+	//set the new weight
+	for (int i = old_edges_num; i < igraph_ecount(&sourceGraph); i++) {
+		SETEAN(&sourceGraph, "weight", i, 1.0);
 	}
+	std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> edge_weight(new igraph_vector_t(), &igraph_vector_destroy);
+	igraph_vector_init(edge_weight.get(), 0);
+	EANV(&sourceGraph, "weight", edge_weight.get());
+	if (igraph_vector_size(edge_weight.get()) != igraph_ecount(&sourceGraph)) {
+		std::cerr << "graph.extend: error: not all edge has \"weight\" attributes!\n";
+		return false;
+	}
+	
+	igraph_attribute_combination_t comb;
+	igraph_attribute_combination(&comb,
+		"weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+		"", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+		IGRAPH_NO_MORE_ATTRIBUTES);
+	igraph_simplify(&sourceGraph, 1, 1, &comb);
+	igraph_attribute_combination_destroy(&comb);
 	return true;
+}
+
+bool graph::extend1to2(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector <cv::DMatch>& matches) {
+	//extract attributes for future assignments
+	if (matches.size() == 0) {
+		std::cerr << "graph.extend1to2: matches size is zero, invalid extention! return source graph instead!\n";
+		return true;
+	}
+	int n_source_vertices = GAN(&sourceGraph, "n_vertices");
+	int n_exd_vertices = GAN(&extendGraph, "n_vertices");
+	std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> 
+		source_label(new igraph_vector_t(), &igraph_vector_destroy),
+		exd_label(new igraph_vector_t(), &igraph_vector_destroy),
+		source_edge_weight(new igraph_vector_t(), &igraph_vector_destroy),
+		exd_edge_weight(new igraph_vector_t(), &igraph_vector_destroy);
+
+	igraph_vector_init(source_label.get(),0);
+	igraph_vector_init(exd_label.get(), 0);
+	igraph_vector_init(source_edge_weight.get(), 0);
+	igraph_vector_init(exd_edge_weight.get(), 0);
+	VANV(&sourceGraph, "label",source_label.get());
+	VANV(&extendGraph, "label", exd_label.get());
+	EANV(&sourceGraph, "weight", source_edge_weight.get());
+	EANV(&extendGraph, "weight", exd_edge_weight.get());
+
+	//union of two graph
+	igraph_t union_graph;
+	igraph_disjoint_union(&union_graph, &sourceGraph, &extendGraph);
+
+	//reset the attributes
+	igraph_vector_append(source_label.get(), exd_label.get());
+	igraph_vector_append(source_edge_weight.get(), exd_edge_weight.get());
+	SETVANV(&union_graph, "label", source_label.get());
+	SETEANV(&union_graph, "weight", source_edge_weight.get());
+
+	//set attributes back
+	//set the new vertices and add attributes for the outliers
+	//igraph_vector_t gtypes, vtypes, etypes;
+	//igraph_strvector_t gnames, vnames, enames;
+	//igraph_vector_init(&gtypes, 0);
+	//igraph_vector_init(&vtypes, 0);
+	//igraph_vector_init(&etypes, 0);
+	//igraph_strvector_init(&gnames, 0);
+	//igraph_strvector_init(&vnames, 0);
+	//igraph_strvector_init(&enames, 0);
+	//igraph_cattribute_list(&sourceGraph, &gnames, &gtypes, &vnames, &vtypes, &enames, &etypes);
+	////iterate through the vertex attribuets and assign the attributes to the vertex
+	//for (int j = 0; j < igraph_strvector_size(&vnames); j++) {
+	//	if (VECTOR(vtypes)[j] == IGRAPH_ATTRIBUTE_NUMERIC) {
+	//		for (int i = 0;i<n_source_vertices;i++) {
+	//			SETVAN(&union_graph, STR(vnames, j), i, VAN(&sourceGraph, STR(vnames, j), i));
+	//			/*SETVAN(&sourceGraph, "label", i.second, VECTOR(*exdLabel)[i.first]);*/
+	//		}
+	//		for (int i = 0; i < n_exd_vertices; i++) {
+	//			SETVAN(&union_graph, STR(vnames, j), i+n_source_vertices, VAN(&extendGraph, STR(vnames, j), i));
+	//			/*SETVAN(&sourceGraph, "label", i.second, VECTOR(*exdLabel)[i.first]);*/
+	//		}
+	//	}
+	//}
+
+	igraph_vector_t	contract_vertices_list;
+	std::vector<igraph_real_t> vertices_ids(igraph_vcount(&union_graph),-1);
+	for (int k = 0; k < matches.size(); k++) {
+		vertices_ids[matches[k].queryIdx + n_source_vertices] = matches[k].trainIdx;
+	}
+	int count = 0;
+	for (int i = 0; i < vertices_ids.size(); i++) {
+		if (vertices_ids[i] == -1.0) {
+			vertices_ids[i] = count;
+			count++;
+		}
+	}
+
+	//change the mapping vertices id: query: exd, train: source
+	igraph_vector_view(&contract_vertices_list, vertices_ids.data(), vertices_ids.size());
+	//start contraction
+	igraph_attribute_combination_t comb;
+	igraph_attribute_combination(&comb,
+		"weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+		"", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+		IGRAPH_NO_MORE_ATTRIBUTES);
+	igraph_contract_vertices(&union_graph, &contract_vertices_list, &comb);
+	igraph_simplify(&union_graph, 1, 1, &comb);
+	SETGAN(&union_graph, "n_vertices", igraph_vcount(&union_graph));
+	/*std::string new_name = std::string(GAS(&sourceGraph, "name")) + "/" + std::string(GAS(&extendGraph, "name"));*/
+	SETGAS(&union_graph, "name", GAS(&sourceGraph, "name"));
+	igraph_destroy(&sourceGraph);
+	sourceGraph = union_graph; //shallow copy? deep copy?
 }

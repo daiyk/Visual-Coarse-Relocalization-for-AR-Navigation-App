@@ -1,7 +1,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <filesystem>
+#include <boost/filesystem.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -9,7 +9,7 @@
 #include "StaticVRImg/matcher.h"
 #include <stdio.h>
 using namespace cv;
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 const char* keys =
 "{ help h |                  | Print help message. }"
 "{ data   |                  | path to the dataset folder for descriptor computation. }";

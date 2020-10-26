@@ -5,7 +5,8 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
-#include <filesystem>
+#include <boost/filesystem.hpp>
+#include <glog/logging.h>
 #include "extractor.h"
 #include "fileManager.h"
 #include "cluster.h"
@@ -16,10 +17,9 @@ extern "C" {
     #include "vl/kmeans.h"
 }
 using params = fileManager::parameters;
-using namespace cv;
-namespace fs = std::filesystem;
+namespace fs = boost::filesystem;
 
-matcher::kdTree::kdTree(Mat source) {
+matcher::kdTree::kdTree(cv::Mat source) {
     if (!source.isContinuous())
     {
         throw std::runtime_error("ERROR: source descriptors are not continuous, kdTree initializer terminated");
@@ -57,8 +57,8 @@ matcher::kdTree::~kdTree() {
     vl_kdforest_delete(this->tree);
 }
 
-std::vector<DMatch> matcher::kdTree::search(Mat& query) {
-    std::vector<DMatch> matches;
+std::vector<cv::DMatch> matcher::kdTree::search(cv::Mat& query) {
+    std::vector<cv::DMatch> matches;
     if (query.rows == 0 || !tree) {
         return matches;
     }
@@ -84,15 +84,15 @@ std::vector<DMatch> matcher::kdTree::search(Mat& query) {
         //compare the first and second nn distance
         double one2TwoNN = NNdist[numOfNN * i] / NNdist[numOfNN * i + 1];
         if (one2TwoNN <= params::MATCH_THRES) { //use distance ratio to filter the matching keypoints
-            DMatch match = DMatch(i, NNs[numOfNN * i], NNdist[numOfNN * i]);
+            cv::DMatch match = cv::DMatch(i, NNs[numOfNN * i], NNdist[numOfNN * i]);
             matches.push_back(match);
         }
     }
     return matches;
 }
 std::vector<cv::DMatch> matcher::kdTree::colmapSearch(cv::Mat& query) {
-    std::vector<DMatch> matches;
-    Mat query_transform;
+    std::vector<cv::DMatch> matches;
+    cv::Mat query_transform;
     query.convertTo(query_transform, CV_32F);
 
     if (query.rows == 0) {
@@ -112,8 +112,8 @@ std::vector<cv::DMatch> matcher::kdTree::colmapSearch(cv::Mat& query) {
     int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), this->numOfNN, numQuery, NNdist.data(), query_transform.ptr<float>(0));
 
     //build Dmatches and check the distance ratio to avoid false matching
-    cv::Mat nearestDist(numQuery, 2, CV_32F, Scalar(0));
-    cv::Mat nearestInd(numQuery, 2, CV_32S, Scalar(-1));
+    cv::Mat nearestDist(numQuery, 2, CV_32F, cv::Scalar(0));
+    cv::Mat nearestInd(numQuery, 2, CV_32S, cv::Scalar(-1));
     const float kDistNorm = 1.f / (512.f * 512.f);
     for (int i = 0; i < numQuery; i++)
     {
@@ -140,23 +140,23 @@ std::vector<cv::DMatch> matcher::kdTree::colmapSearch(cv::Mat& query) {
         if (nearestDist.at<float>(i, 0) >= params::MATCH_THRES * nearestDist.at<float>(i, 1)) {
             continue;
         }
-        DMatch match = DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
+        cv::DMatch match = cv::DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
         matches.push_back(match);
     }
     return matches;
 }
 
 matcher::matchOut matcher::kdTree::kdTreeDemo(std::string& img1, std::string& img2, bool display) {
-    std::vector<std::vector<KeyPoint>> ttl_kpts;
+    std::vector<std::vector<cv::KeyPoint>> ttl_kpts;
     int dim = params::descriptDim;
-    Mat outImg;
+    cv::Mat outImg;
     std::vector<std::string> trainPath; //template path store the image paths
-    std::vector<DMatch> matches; //
+    std::vector<cv::DMatch> matches; //
     matcher::matchOut matchRel;
     
     trainPath.push_back(img1);
-    Mat descripts1,descripts2;
-    std::vector<KeyPoint> kpts1,kpts2;
+    cv::Mat descripts1,descripts2;
+    std::vector<cv::KeyPoint> kpts1,kpts2;
     extractor::vlimg_descips_compute(trainPath, descripts1, kpts1);
 
     trainPath.pop_back();
@@ -196,28 +196,28 @@ matcher::matchOut matcher::kdTree::kdTreeDemo(std::string& img1, std::string& im
     //        DMatch match = DMatch(i, NNs[params::numOfNN * i], NNdist[params::numOfNN * i]);
     //        matches.push_back(match);
     //    }
-    Mat image1 = imread(img1), image2 = imread(img2);
+    cv::Mat image1 = cv::imread(img1), image2 = cv::imread(img2);
     matchRel.matches = matches;
     matchRel.source = kpts2;
     matchRel.refer = kpts1;
     if (display) {
-        drawMatches(image2, kpts2, image1, kpts1, matches, outImg, Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-        namedWindow("Matches", WINDOW_NORMAL);
+        cv::drawMatches(image2, kpts2, image1, kpts1, matches, outImg, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+        cv::namedWindow("Matches", cv::WINDOW_NORMAL);
         imshow("Matches", outImg);
-        waitKey();
+        cv::waitKey();
     }
 
     return matchRel;
 }
 
 std::vector<cv::DMatch> matcher::opencvFlannMatcher(cv::Mat& source, cv::Mat& query) {
-    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    std::vector< std::vector<DMatch> > knn_matches;
+    cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::FLANNBASED);
+    std::vector< std::vector<cv::DMatch> > knn_matches;
     matcher->knnMatch(query, source, knn_matches, 2);
 
     //-- Filter matches using the Lowe's ratio test
     const float ratio_thresh = params::MATCH_THRES;
-    std::vector<DMatch> good_matches;
+    std::vector<cv::DMatch> good_matches;
     for (size_t i = 0; i < knn_matches.size(); i++)
     {
         if (knn_matches[i][0].distance < ratio_thresh * knn_matches[i][1].distance)
@@ -242,10 +242,10 @@ void matcher::RANSC(cv::Mat& sourceDescrips, std::vector<cv::KeyPoint> &sourcekp
     homo = cv::findHomography(matchkpts1, matchkpts2, mask, cv::RANSAC);
 }
 
-std::vector<cv::DMatch> matcher::colmapFlannMatcher(const Mat& query_descriptors, const Mat& database_descriptors, int NNeighbors) {
-    Mat indices_1to2, distance;
+std::vector<cv::DMatch> matcher::colmapFlannMatcher(const cv::Mat& query_descriptors, const cv::Mat& database_descriptors, int NNeighbors) {
+    cv::Mat indices_1to2, distance;
     distance.resize(query_descriptors.rows);
-    std::vector<DMatch> matches;
+    std::vector<cv::DMatch> matches;
     if (query_descriptors.rows == 0 || database_descriptors.rows == 0) {
         return matches;
     }
@@ -260,7 +260,7 @@ std::vector<cv::DMatch> matcher::colmapFlannMatcher(const Mat& query_descriptors
     auto tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
     //start building tree build from the database 
     int numWords = database_descriptors.rows;
-    Mat db_transform, query_transform;
+    cv::Mat db_transform, query_transform;
     database_descriptors.convertTo(db_transform, CV_32F);
     query_descriptors.convertTo(query_transform, CV_32F);
     
@@ -289,8 +289,8 @@ std::vector<cv::DMatch> matcher::colmapFlannMatcher(const Mat& query_descriptors
     int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), NNeighbors, numQuery, NNdist.data(), query_transform.ptr<float>(0));
 
     //build Dmatches and check the distance ratio to avoid false matching
-    cv::Mat nearestDist(numQuery, 2, CV_32F, Scalar(0));
-    cv::Mat nearestInd(numQuery, 2, CV_32S, Scalar(-1));
+    cv::Mat nearestDist(numQuery, 2, CV_32F, cv::Scalar(0));
+    cv::Mat nearestInd(numQuery, 2, CV_32S, cv::Scalar(-1));
     const float kDistNorm = 1.f / (512.f * 512.f);
     for (int i = 0; i < numQuery; i++)
     {
@@ -317,9 +317,13 @@ std::vector<cv::DMatch> matcher::colmapFlannMatcher(const Mat& query_descriptors
         if (nearestDist.at<float>(i, 0) >= params::MATCH_THRES * nearestDist.at<float>(i, 1)) {
             continue;
         }
-        DMatch match = DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
+        cv::DMatch match = cv::DMatch(i, nearestInd.at<int>(i, 0), nearestDist.at<float>(i, 0));
         matches.push_back(match);
     }
     return matches;
 }
+
+
+
+//explicit template initialization
 

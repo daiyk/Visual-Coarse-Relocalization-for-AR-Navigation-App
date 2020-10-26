@@ -8,7 +8,7 @@
 #include <random>
 #include <omp.h>
 #include <fstream>
-#include <filesystem>
+#include <boost/filesystem.hpp>
 
 bool useCOvdet = true;
 bool useTFIDF = false; //whether include tfidf scores in the compuattion
@@ -562,7 +562,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//		igraph_t mygraph2;
 	//		bool status = graph::build(matches, kpts2, mygraph2);
 	//		if (!status) { std::cout << "graph build failed! check your function." << std::endl; }
-	//		if (int(igraph_cattribute_GAN(&mygraph2, "vertices")) != 0)
+	//		if (int(igraph_cattribute_GAN(&mygraph2, "n_vertices")) != 0)
 	//		{
 	//			/*fileManager::write_graph(mygraph2, fs::path(ukb.imgPaths[i][j]).stem().string(), "graphml");*/
 	//		}
@@ -572,7 +572,7 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	//			kernel::robustKernel kernelObj(1, kCenters.rows);
 
 	//			//check if empty graph is tested
-	//			if (int(igraph_cattribute_GAN(&query_graphs[k], "vertices")) == 0 || int(igraph_cattribute_GAN(&mygraph2, "vertices")) == 0) {
+	//			if (int(igraph_cattribute_GAN(&query_graphs[k], "n_vertices")) == 0 || int(igraph_cattribute_GAN(&mygraph2, "vertices")) == 0) {
 	//				scores[k][i * 4 + j] = 0.0;
 	//				kernelObj.~robustKernel();
 	//				continue;
@@ -625,15 +625,6 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 }
 
 
-UKB::UKBench::UKBench(std::string& path, int catNum)
-{
-	this->categoryNum = catNum;
-	this->UKBdataRead(path);
-}
-
-UKB::UKBench::~UKBench()
-{
-}
 int UKB::UKBench::UKBdataRead(std::string path) {
 	//define the size of datasets
 	if (imgPaths.size() != 0) {
@@ -647,7 +638,7 @@ int UKB::UKBench::UKBdataRead(std::string path) {
 	}
 	int count = 0, catInd = 0;
 	for (const auto& it : fs::directory_iterator(ukdata)) {
-		if (it.is_directory()) {
+		if (fs::is_directory(it.path())) {
 			continue;
 		}
 		int ind = std::stoi(it.path().stem().string().substr(7, 5));
@@ -759,8 +750,12 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 	std::mt19937 engine(rd()); //Standard mersenne_twister_engine seeded with rd()
 	indexes.clear();
 	indexes.reserve(size);
+
+	std::unordered_set<int> elems = helper::pickSet(pools.size(), size, engine);
+
+	std::vector<int> result(elems.begin(), elems.end());
 	//sample
-	std::sample(pools.begin(), pools.end(), std::back_inserter(indexes), size, engine);
+	/*std::sample(pools.begin(), pools.end(), std::back_inserter(indexes), size, engine);*/
 
 	//for each category sample images
 	imgs.clear();
@@ -768,7 +763,8 @@ void UKB::UKBench::UKdataSample(int size, std::vector<std::string>& imgs, std::v
 
 	std::uniform_int_distribution<int> dist(0, 3);
 	for (int i = 0; i < size; i++) {
-		int ind1 = indexes[i], ind2 = dist(engine);
+		/*int ind1 = indexes[i], ind2 = dist(engine);*/
+		int ind1 = result[i], ind2 = dist(engine);
 		imgs.push_back(this->imgPaths[ind1][ind2]);
 	}
 }
