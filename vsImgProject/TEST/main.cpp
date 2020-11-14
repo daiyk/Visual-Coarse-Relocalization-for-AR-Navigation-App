@@ -6,6 +6,7 @@
 #include <Eigen/Core>
 #define IGRAPH_STATIC 1
 #include <igraph.h>
+#include <opencv2/core/eigen.hpp>
 #include "UKsets.h"
 #include "Graphtest.h"
 #include "featureTest.h"
@@ -34,7 +35,9 @@ void vladTrain(std::string path) {
 int main(int argc, const char* argv[]) {
 	fileManager::read_user_set();
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
-	std::cout << "argument number: " << argc;
+	/*std::cout << "argument number: " << argc<<"\n";*/
+	/*featureExtTest();
+	return 0;*/
 	if (argc < 2) {
 		//std::cout << "please provides the path to UKBench imagesets" << std::endl;
 		graphExtendTest();
@@ -63,10 +66,9 @@ int main(int argc, const char* argv[]) {
 		/*UKB::UKtest(argc, argv, params::sampleSize, params::imgsetSize);*/
 		//test two imgs
 		/*recurKernelTestWithImage(argc, argv);*/
-		std::vector<std::string> qry_imgs;
-		fileManager::read_files_in_path(argv[1],qry_imgs);
-		/*nhhdGraphTest(qry_imgs,argv[2]);*/
-		flanntest(qry_imgs, argv[2]);
+		
+		nhhdGraphTest(argv);
+		/*flanntest(qry_imgs, argv[2]);*/
 
 	}
 	if(argc==4)

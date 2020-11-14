@@ -11,18 +11,21 @@ namespace nbhd {
 	public:
 		nbhdGraph();
 		nbhdGraph(const fileManager::covisOptions& option);
+		void init(const fileManager::covisOptions& options);
 		~nbhdGraph();
 		std::vector<cv::Mat> Read(const std::vector<std::string> &paths);
-		void preprocess();
-		auto  getVocab();
+		void preprocess(const fileManager::covisOptions& options);
+		auto getVocab();
 		void setVocab(std::string vocabPath);
 		void setVocab(cv::Mat vocab);
 		int NumDatabse() { if (database) { return database->NumImages(); } }
 		int NumQuery() { return query_images.size(); }
 		int NextIndex() { return next_index_; }
 		int Next();
+
 	private:
 		int next_index_=-1;
+		bool use_vlfeat = false;
 		cv::Mat readVocab(std::string vocabPath);
 		std::unique_ptr<matcher::kdTree> vocab;
 		matcher::colmapVisualIndex<> vocab_;
@@ -35,7 +38,6 @@ namespace nbhd {
 		int num_inliers_images_;
 		std::ofstream write_stream_;
 		std::vector<std::unordered_map<int,float>> scores;
-
 	};
 }
 #endif

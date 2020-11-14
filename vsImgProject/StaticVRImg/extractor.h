@@ -6,6 +6,7 @@
 #include <vector>
 #include <opencv2/core.hpp>
 
+
 namespace extractor {
 	// opencv pipeline to do extraction of keypoints and descriptors 
 	void openCVimg_descips_compute(std::vector<std::string>& paths, cv::Mat& allDescripts, std::vector<cv::KeyPoint>& keypoints);

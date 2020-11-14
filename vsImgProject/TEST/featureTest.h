@@ -35,22 +35,121 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
 		_src.copyTo(dst);
 	}
 }
-//void featureExtTest(){
-//	std::string imgPath = "E:\\datasets\\south-building\\images_database\\P1180141.JPG";
-//	colmap::Bitmap img;
-//	img.Read(imgPath, false);
-//	//test the extractor
-//	std::vector<colmap::Bitmap> imgs;
-//	imgs.push_back(img);
-//	std::vector<colmap::FeatureKeypoints> keypoints;
-//	std::vector<colmap::FeatureDescriptors> descripts;
-//	extractor::siftGPU_descips_compute_simple(imgs, keypoints, descripts);
-//
-//
-//}
+void visualWordsTest() {
+	matcher::colmapVisualIndex<> vocab;
+	std::string imgPath = "E:\\datasets\\south-building\\images\\P1180142.JPG";
+	std::string vocabPath = "E:\\vocab_tree_flickr100K_words32K.bin";
+	colmap::Database database("E:\\datasets\\south-building\\southbuildingdatabase.db");
+	auto imgMat=cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
+	vocab.Read(vocabPath);
+	std::vector<cv::KeyPoint> imgKpts;
+	cv::Mat imgDescripts;
+	extractor::vlimg_descips_compute_simple(imgMat,  imgDescripts, imgKpts);
+	Eigen::Matrix<uint8_t, Eigen::Dynamic, 128, Eigen::RowMajor> imgColmapDescripts;
+	imgColmapDescripts.resize(imgDescripts.rows, Eigen::NoChange);
+	for (int i = 0; i < imgDescripts.rows; i++) {
+		for (int j = 0; j < imgDescripts.cols; j++) {
+			imgColmapDescripts(i, j) = imgDescripts.at<uint8_t>(i, j);
+		}
+	}
+	//find words id and corresponding id for database and the vlimg extractor
+	int num_neighbor = 1;
+	int num_checks = 256;
+	int num_threads = -1;
+	auto imgIds = vocab.FindWordIds(imgColmapDescripts,num_neighbor,num_checks,num_threads);
+
+	//compare with the ids from database
+	auto imgId = database.ReadImageWithName(fs::path(imgPath).filename().string()).ImageId();
+	auto imgColmapIds = database.ReadVisualIDs(imgId);
+	auto imgColmapKeyPoints = database.ReadKeypoints(imgId);
+	helper::ExtractTopFeatures(&imgColmapKeyPoints, &imgColmapIds, fileManager::parameters::maxNumFeatures);
+	auto imgColmapIdsMatrix = imgColmapIds.ids;
+	//compare the visual ids and build the matching
+	//build inverted-index tree
+	std::unordered_map<int, std::vector<int>> inverted_index;
+	for (int i = 0; i < imgColmapIdsMatrix.rows(); i++) {
+		inverted_index[imgColmapIdsMatrix(i, 1)].push_back(imgColmapIdsMatrix(i, 0));
+	}
+
+	//compare with the inverted_index and find the matches
+	//loop through the inverted index
+	std::vector<cv::DMatch> matches;
+	for (int j = 0; j < imgIds.rows();j++) {
+		if (inverted_index.count(imgIds(j, 0))) {
+			/*for (int k = 0; k < inverted_index[imgIds(j,0)].size(); k++) {*/
+				matches.push_back(cv::DMatch( j, inverted_index[imgIds(j, 0)][0],0));
+			//}
+		}
+	}
+	//draw the matches between these two images
+	std::vector < cv::KeyPoint> imgColmapKpts;
+	for (int i = 0; i < imgColmapKeyPoints.size(); i++) {
+		imgColmapKpts.push_back(cv::KeyPoint(imgColmapKeyPoints[i].x, imgColmapKeyPoints[i].y, imgColmapKeyPoints[i].ComputeScale(), imgColmapKeyPoints[i].ComputeOrientation()));
+	}
+	cv::Mat finalimg;
+	cv::drawMatches(imgMat, imgColmapKpts,imgMat,imgKpts,matches,finalimg, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+	cv::imwrite("visualidmatches", finalimg);
+}
+void featureExtTest(){
+	std::string imgPath = "E:\\datasets\\south-building\\images\\P1180142.JPG";
+	colmap::Database database("E:\\datasets\\south-building\\southbuildingdatabase.db");
+	auto imgMat = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
+	//test the extractor
+	std::vector<cv::KeyPoint> imgKpts;
+	cv::Mat imgDescripts;
+	extractor::vlimg_descips_compute_simple(imgMat,imgDescripts, imgKpts);
+	
+
+	//extract from database and compute the correspondence
+	std::string testImg = "E:\\datasets\\south-building\\images\\P1180143.JPG";
+	auto imgId = database.ReadImageWithName(fs::path(testImg).filename().string()).ImageId();
+	auto imgColmapDescripts = database.ReadDescriptors(imgId);
+	//extract top features
+	std::cout << imgColmapDescripts.rows() << "  " << imgColmapDescripts.cols();
+	auto imgColmapKeyPoints = database.ReadKeypoints(imgId);
+
+
+	Eigen::Matrix<uint8_t,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> imgColmapDescriptsBottomRows = imgColmapDescripts.bottomRows(fileManager::parameters::maxNumFeatures).matrix();
+	//transform keypoints to standard cv keypoints
+	std::vector<cv::KeyPoint> imgColmapKpts;
+	for (int i = 0/*imgColmapKeyPoints.size()-fileManager::parameters::maxNumFeatures*/; i < imgColmapKeyPoints.size(); i++) {
+		imgColmapKpts.push_back(cv::KeyPoint(imgColmapKeyPoints[i].x,imgColmapKeyPoints[i].y,imgColmapKeyPoints[i].ComputeScale(),imgColmapKeyPoints[i].ComputeOrientation()));
+	}
+	cv::Mat colmapDescripts;
+	cv::eigen2cv(imgColmapDescripts, colmapDescripts);
+	//find matches
+	cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::FLANNBASED);
+	std::vector< std::vector<cv::DMatch> > knn_matches;
+	imgDescripts.convertTo(imgDescripts, CV_32F);
+	colmapDescripts.convertTo(colmapDescripts, CV_32F);
+	matcher->knnMatch(imgDescripts, colmapDescripts, knn_matches, 2);
+
+	//define matches
+	std::vector<cv::DMatch> good_matches;
+	for (size_t i = 0; i < knn_matches.size(); i++)
+	{
+		if (knn_matches[i][0].distance < fileManager::parameters::MATCH_THRES * knn_matches[i][1].distance)
+		{
+			good_matches.push_back(knn_matches[i][0]);
+		}
+	}
+	std::cout << "\ncolmap features: " << colmapDescripts.rows << "  vlimg features: " << imgDescripts.rows;
+	std::cout << "\ngood matches number: " << good_matches.size() << "\n";
+
+	//draw matches
+	cv::Mat outMatches;
+	cv::drawMatches(imgMat, imgKpts, imgMat, imgColmapKpts, good_matches,outMatches,cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+	/*namedWindow("matches", cv::WINDOW_AUTOSIZE);*/
+	cv::imwrite("match.jpg", outMatches);
+	cv::resizeWindow("matches", 1024, 1024);
+	imshow("matches", outMatches);
+	cv::waitKey();	
+}
+
 inline void flanntest(std::vector<std::string> query_paths, std::string database_path) {
 	std::string img_folder = fs::path(query_paths[0]).parent_path().string();
 	//loop over the database path and get the path for database images
+	colmap::Database database("E:\\datasets\\south-building\\southbuildingdatabase.db");
 	std::vector<std::string> db_imgs;
 	fileManager::read_files_in_path(database_path, db_imgs);
 	if (db_imgs.empty()) {
@@ -85,18 +184,31 @@ inline void flanntest(std::vector<std::string> query_paths, std::string database
 	}
 	std::vector<std::vector<double>> scores(allDescripts.size(), std::vector<double>(db_imgs.size()));
 	for (int i = 0; i < db_imgs.size(); i++) {
-		auto dbImg = cv::imread(db_imgs[i], cv::IMREAD_GRAYSCALE);
+		
 		cv::Mat dbDescripts;
 		std::vector < cv::KeyPoint> dbKpts;
 
+		//search on the database and pick up the corresponding images
+		auto dbfilename=fs::path(db_imgs[i]).filename().string();
+		if (!database.ExistsImageWithName(dbfilename)) {
+			std::cout << "\nflanntest:can't find the corresponding image.";
+			for (int k = 0; k < allDescripts.size(); k++) {
+				scores[k][i] = -1;
+			}
+			continue;
+		}
+		auto dbimgId = database.ReadImageWithName(dbfilename).ImageId();
+		colmap::FeatureDescriptors descripts = database.ReadDescriptors(dbimgId);
+		cv::eigen2cv(descripts, dbDescripts);
 
+		/*auto dbImg = cv::imread(db_imgs[i], cv::IMREAD_GRAYSCALE);
 		try {
 			extractor::vlimg_descips_compute_simple(dbImg, dbDescripts, dbKpts);
 		}
 		catch (std::invalid_argument& e) {
 			std::cout << e.what() << std::endl;
 			break;
-		};
+		};*/
 
 
 		//do comparison with the qry images
@@ -117,28 +229,32 @@ inline void flanntest(std::vector<std::string> query_paths, std::string database
 	
 }
 
-inline void nhhdGraphTest(std::vector<std::string> query_paths, std::string database_path) {
+inline void nhhdGraphTest(const char** argv) {
+	std::vector<std::string> query_paths;
+	fileManager::read_files_in_path(argv[1], query_paths);
+	std::string database_path = argv[2];
 	fileManager::covisOptions options;
 	options.database_path = database_path;
 	colmap::Database databs(options.database_path);
 	options.vocab_path = "E:\\vocab_tree_flickr100K_words32K.bin";
-	fs::path img(query_paths[0]);
-	std::string img_folder = img.parent_path().string();
+	
+	std::string img_folder = argv[1];
 	options.image_path = img_folder;
-	options.numImageToKeep = 3;
+	options.numImageToKeep = 2;
 	options.image_list.clear();
 	if (query_paths.empty()) { std::cerr << "\nempty query_paths!"; return; }
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 1; i++) {
 		fs::path imgpath(query_paths[i]);
 		options.image_list.push_back(imgpath.filename().string());
 	}
-	
+	options.exe_path = argv[0];
+
 	//build nbhd object
 	nbhd::nbhdGraph graphObj(options);
 	while (true) {
 		int status = graphObj.Next();
 		if (status==0) {
-			std::cerr << "error happens during graphObj operations" << std::endl;
+			std::cerr << "nbhdGraphTest: error happens during graphObj operations" << std::endl;
 			break;
 		}
 		if (status==1) {

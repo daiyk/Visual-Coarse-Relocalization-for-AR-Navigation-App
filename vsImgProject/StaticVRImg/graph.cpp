@@ -730,6 +730,7 @@ bool graph::extend(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector<cv:
 
 bool graph::extend1to2(igraph_t& sourceGraph, igraph_t& extendGraph, std::vector <cv::DMatch>& matches) {
 	//extract attributes for future assignments
+	igraph_init();
 	if (matches.size() == 0) {
 		std::cerr << "graph.extend1to2: matches size is zero, invalid extention! return source graph instead!\n";
 		return true;

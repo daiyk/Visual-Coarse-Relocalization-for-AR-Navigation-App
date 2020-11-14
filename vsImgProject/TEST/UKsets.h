@@ -35,7 +35,6 @@ namespace UKB {
 		std::vector<catPaths> imgPaths;
 		std::vector<int> imgIndexs;
 		int categoryNum;
-		;
 	};
 
 	

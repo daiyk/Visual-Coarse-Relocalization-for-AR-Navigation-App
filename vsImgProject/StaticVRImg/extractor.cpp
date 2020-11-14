@@ -6,14 +6,17 @@
 #include <set>
 #include <boost/filesystem.hpp>
 #include <omp.h>
+//#include <windows.h>
+//#include <util/option_manager.h>
+//#include <util/misc.h>
+//#include <base/image_reader.h>
+//#include <base/camera_models.h>
+//#include <QtWidgets/qapplication.h>
+//#include <feature/extraction.h>
 #include "extractor.h"
 #include "fileManager.h"
 #include "helper.h"
 
-//#include "util/misc.h"
-//#include "util/opengl_utils.h"
-//#include <SiftGPU/SiftGPU.h>
-//#include <feature/sift.h>
 
 extern "C" {
     #include "vl/sift.h"
@@ -24,6 +27,12 @@ using namespace std;
 using namespace cv;
 namespace fs = boost::filesystem;
 using params = fileManager::parameters;
+#ifdef CUDA_ENABLED
+const bool kUseOpenGL = false;
+#else
+const bool kUseOpenGL = true;
+#endif
+
 #ifdef HAVE_OPENCV_XFEATURES2D
 #include <opencv2/xfeatures2d.hpp>
 

@@ -4,8 +4,10 @@
 #include <StaticVRImg/helper.h>
 #include <colmap/util/endian.h>
 #include <opencv2/core/eigen.hpp>
+#include <exe/colmap_util.h>
 #include <fstream>
 #include <map>
+#include <chrono>
 
 void twoViewMatchesFilter(colmap::FeatureMatches& inlier_matches,int idx1_limit, int idx2_limit) {
 	//filter out the matches that id exceeds the max_num_features
@@ -53,6 +55,11 @@ nbhd::nbhdGraph::nbhdGraph(){
 
 }
 nbhd::nbhdGraph::nbhdGraph(const fileManager::covisOptions& options) {
+	init(options);	
+}
+
+
+void nbhd::nbhdGraph::init(const fileManager::covisOptions& options) {
 	//open the database
 	database = new colmap::Database(options.database_path);
 
@@ -73,19 +80,21 @@ nbhd::nbhdGraph::nbhdGraph(const fileManager::covisOptions& options) {
 	this->scores.resize(query_images.size()); //resize the score vector to the length of query images
 
 	//read dictionary and build kdtree
-	this->vocab_ .Read(options.vocab_path);
+	this->vocab_.Read(options.vocab_path);
 
 	/*this->vocab = std::make_unique<matcher::kdTree>(readVocab(options.vocab_path));*/ // vlfeat kdtree
 	this->vocab_path_ = options.vocab_path;
 
+	//database transaction
+	DatabaseTransaction transaction(database);
+
 	//init covismap
-	this->map = std::make_unique<kernel::covisMap>(this->vocab_.NumVisualWords(),database->NumImages()+1);
+	this->map = std::make_unique<kernel::covisMap>(this->vocab_.NumVisualWords(), database->NumImages() + 1);
 
 	this->num_inliers_images_ = options.numImageToKeep;
 
 	//construct the query graphs and store it
-	this->preprocess();
-		
+	this->preprocess(options);
 }
 nbhd::nbhdGraph::~nbhdGraph() {
 	 database->Close();
@@ -117,64 +126,106 @@ std::vector<cv::Mat> nbhd::nbhdGraph::Read(const std::vector<std::string> &paths
 }
 
 //vocabtree matching from query image features and build graphs on top of it 
-void nbhd::nbhdGraph::preprocess() {
+void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 	//extract features from the query and build graphs
 	this->query_graphs.clear();
 	this->query_graphs.resize(NumQuery());
 
 	//search on the database and check the existence
-	for (int i = 0; i < NumQuery(); i++) {
-		if(false)/*if (this->database->ExistsImageWithName(this->query_image_names[i]))*/
-		{
-			int imageIds = this->database->ReadImageWithName(this->query_image_names[i]).ImageId();
+	if (use_vlfeat) {
+		DatabaseTransaction transaction(database);
+		for (int i = 0; i < NumQuery(); i++) {
+			if (this->database->ExistsImageWithName(this->query_image_names[i]))
+			{
+				
+				int imageIds = this->database->ReadImageWithName(this->query_image_names[i]).ImageId();
 
-			//read descriptor 
-			auto visualIDs = this->database->ReadVisualIDs(imageIds).ids;
-			std::vector < cv::DMatch> matches;
-			matches.reserve(visualIDs.rows());
-			for (int i = 0; i < visualIDs.rows(); i++) {
-				matches.push_back(cv::DMatch(i, visualIDs(i, 1), -1));
-			}
-			std::vector<cv::KeyPoint> points;
-			graph::buildFull(matches, points, query_graphs[i]);
-
-		}
-
-		else { //otherwise compute the descriptors for the new image
-			auto qry_img = this->query_images[i];
-			std::vector<cv::KeyPoint> points;
-			cv::Mat descripts;
-			extractor::vlimg_descips_compute_simple(qry_img, descripts, points);
-
-			//matching with dictionary
-			/*auto matches = this->vocab->colmapSearch(descripts);*/
-			Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenDescripts(descripts.rows, descripts.cols);
-			for (int i = 0; i < descripts.rows; i++) {
-				for (int j = 0; j < descripts.cols; j++) {
-					eigenDescripts(i, j) = descripts.at<uint8_t>(i, j);
+				//read descriptor 
+				auto visualIDs = this->database->ReadVisualIDs(imageIds).ids;
+				std::vector < cv::DMatch> matches;
+				matches.reserve(visualIDs.rows());
+				for (int j = 0; j < visualIDs.rows(); j++) {
+					matches.push_back(cv::DMatch(j, visualIDs(j, 1), -1));
 				}
+				std::vector<cv::KeyPoint> points;
+				graph::buildFull(matches, points, query_graphs[i]);
+
 			}
-			int num_threads = -1;
-			int num_checks = 256;
-			int num_neighbors = 1;
-			auto imageIds = this->vocab_.FindWordIds(eigenDescripts, num_neighbors, num_checks, num_threads);
+			else { //otherwise compute the descriptors for the new image
+				auto qry_img = this->query_images[i];
+				std::vector<cv::KeyPoint> points;
+				cv::Mat descripts;
+				extractor::vlimg_descips_compute_simple(qry_img, descripts, points);
 
+				//matching with dictionary
+				/*auto matches = this->vocab->colmapSearch(descripts);*/
+				Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenDescripts(descripts.rows, descripts.cols);
+				for (int k = 0; k < descripts.rows; k++) {
+					for (int j = 0; j < descripts.cols; j++) {
+						eigenDescripts(k, j) = descripts.at<uint8_t>(k, j);
+					}
+				}
+				int num_threads = -1;
+				int num_checks = 256;
+				int num_neighbors = 1;
+				auto imageIds = this->vocab_.FindWordIds(eigenDescripts, num_neighbors, num_checks, num_threads);
+
+				//transform back to opencv matches
+				std::vector < cv::DMatch> matches;
+				matches.reserve(descripts.rows);
+				for (int j = 0; j < descripts.rows; j++) {
+					//always the first one is the id because the eigen matrix is [rows,1] for single neighboor
+					matches.push_back(cv::DMatch(j, imageIds(j, 0), -1));
+
+				}
+				graph::buildFull(matches, points, query_graphs[i]);
+			}
+		}
+		//release images
+		for (auto i : this->query_images) {
+			i.release();
+		}
+	}
+	else
+	{
+		std::vector<colmap::FeatureDescriptors> query_descripts;
+		std::vector<std::string> argStrs;
+		int argv_count = 0;
+		argStrs.push_back(options.exe_path);
+		argStrs.push_back("--database_path");
+		argStrs.push_back(options.database_path);
+		argStrs.push_back("--image_path");
+
+		argStrs.push_back(options.image_path);
+		argStrs.push_back("--SiftExtraction.max_num_features");
+		argStrs.push_back(std::to_string(fileManager::parameters::maxNumFeatures));
+		std::vector<char*> argChar;
+		argChar.reserve(argStrs.size());
+		for (int i = 0; i < argStrs.size(); i++) {
+			argChar.push_back(const_cast<char*>(argStrs[i].c_str()));
+		}
+		colmap::RunSimpleFeatureExtractor(argChar.size(), argChar.data(), query_descripts);
+
+		//find visual IDs
+		int num_threads = -1;
+		int num_checks = 256;
+		int num_neighbors = 1;
+		for (int i = 0; i < NumQuery(); i++) {
+			auto imageIds = this->vocab_.FindWordIds(query_descripts[i], num_neighbors, num_checks, num_threads);
+			
 			//transform back to opencv matches
+			/*helper::ExtractTopFeatures(&(this->database->ReadKeypoints(i.first)), &base_graph_ids, fileManager::parameters::maxNumFeatures);
+			auto matches = idsToMatches(base_graph_ids, i.first);*/
 			std::vector < cv::DMatch> matches;
-			matches.reserve(descripts.rows);
-			for (int i = 0; i < descripts.rows; i++) {
+			std::vector<cv::KeyPoint> points;
+			matches.reserve(query_descripts[i].rows());
+			for (int j = 0; j < query_descripts[i].rows(); j++) {
 				//always the first one is the id because the eigen matrix is [rows,1] for single neighboor
-				matches.push_back(cv::DMatch(i, imageIds(i, 0), -1));
-
+				matches.push_back(cv::DMatch(j, imageIds(j, 0), -1));
 			}
 			graph::buildFull(matches, points, query_graphs[i]);
 		}
 	}
-	//release images
-	for (auto i : this->query_images) {
-		i.release();
-	}
-
 	//build invert_index_
 	for (auto i : database->ReadAllImages()) {
 		auto ids = database->ReadVisualIDs(i.ImageId());
@@ -182,7 +233,6 @@ void nbhd::nbhdGraph::preprocess() {
 	}
 	//if preprocess success, set the next_index_
 	this->next_index_ = 0;
-
 	this->write_stream_ << "qry_img[ID]" << "," << "db_img[ID]" << "," << "score" << "\n";
 }
 
@@ -224,10 +274,11 @@ int nbhd::nbhdGraph::Next() {
 	if (next_index_ == -1) {
 		return 0;
 	}
-	if (next_index_ == query_images.size()) {
+	if (next_index_ == query_graphs.size()) {
 		return 1;
 	}
 
+	DatabaseTransaction transaction(database);
 	//process next_index_ query image and search locations in the database for the best image
 	//build clique
 	
@@ -252,14 +303,15 @@ int nbhd::nbhdGraph::Next() {
 	std::vector<int> numInliers;
 	database->ReadTwoViewGeometryNumInliers(&image_pairs, &numInliers);
 	
-	//container for the comparison of two view verified image id inliers
-	/*std::unordered_map<int, std::multimap<int,int,std::greater<int>>> twoViewInliers;*/
-	std::map<int, std::vector<int>> twoViewImages;
-	
+	/*** second method ***/
+	auto t1 = std::chrono::high_resolution_clock::now();;
+	std::unordered_map<int, std::vector<int>> twoViewImages;
+	std::unordered_map<int,std::vector<int>> twoViewImagesNumInliners;
 	for (auto i : candidates) {
 		twoViewImages[i].reserve(this->num_inliers_images_);
+		twoViewImagesNumInliners[i].reserve(this->num_inliers_images_);
 	}
-	//loop through the pairs and find the corresponding inlier image for merging
+	//loop through the pairs and find the corresponding inlier image for merging need to forward and backward checking the numinliers
 	for (int i = 0; i < image_pairs.size();i++) {
 		/*auto rel = std::find(candidates.begin(), candidates.end(), image_pairs[i].first);
 		if (rel != candidates.end()) {
@@ -267,13 +319,63 @@ int nbhd::nbhdGraph::Next() {
 		}*/
 		if (twoViewImages.find(image_pairs[i].first) != twoViewImages.end()) {
 			if (twoViewImages[image_pairs[i].first].size() < this->num_inliers_images_) {
-				/*std::cout << image_pairs[i].first << "th image numInliers: " << image_pairs[i].second << " with " << numInliers[i] << std::endl;*/
 				twoViewImages[image_pairs[i].first].push_back(image_pairs[i].second);
+				twoViewImagesNumInliners[image_pairs[i].first].push_back(numInliers[i]);
+			}
+			else /*if(twoViewImagesNumInliners[image_pairs[i].first].back() < numInliers[i])*/ //else check by comparing through all stored elements
+			{
+				/*twoViewImagesNumInliners[image_pairs[i].first].pop_back();
+				twoViewImages[image_pairs[i].first].pop_back();*/
+				std::vector<int>::const_iterator it;
+				for (it = twoViewImagesNumInliners[image_pairs[i].first].begin(); it != twoViewImagesNumInliners[image_pairs[i].first].end(); it++) {
+					if (*it < numInliers[i]) {
+						int offset = it - twoViewImagesNumInliners[image_pairs[i].first].begin();
+						twoViewImagesNumInliners[image_pairs[i].first].insert(it,numInliers[i]); //insert the new elements and erase the old element
+						twoViewImagesNumInliners[image_pairs[i].first].erase(twoViewImagesNumInliners[image_pairs[i].first].begin()+offset+1);
+						twoViewImages[image_pairs[i].first].insert(twoViewImages[image_pairs[i].first].begin() + offset, image_pairs[i].second);
+						twoViewImages[image_pairs[i].first].erase(twoViewImages[image_pairs[i].first].begin() + offset+1);
+						break;
+					}
+				}
+	
 			}
 		}
+		if (twoViewImages.find(image_pairs[i].second) != twoViewImages.end()) {
+			if (twoViewImages[image_pairs[i].second].size() < this->num_inliers_images_) {
+				twoViewImages[image_pairs[i].second].push_back(image_pairs[i].first);
+				twoViewImagesNumInliners[image_pairs[i].second].push_back(numInliers[i]);
+			}
+			else /*if (twoViewImagesNumInliners[image_pairs[i].second].back() < numInliers[i])*/
+			{
+				/*twoViewImagesNumInliners[image_pairs[i].second].pop_back();
+				twoViewImages[image_pairs[i].second].pop_back();*/
+				std::vector<int>::const_iterator it;
+				for (it = twoViewImagesNumInliners[image_pairs[i].second].begin(); it != twoViewImagesNumInliners[image_pairs[i].second].end(); it++) {
+					if (*it < numInliers[i]) {
+						int offset = it - twoViewImagesNumInliners[image_pairs[i].second].begin();
+						twoViewImagesNumInliners[image_pairs[i].second].insert(it, numInliers[i]);
+						twoViewImagesNumInliners[image_pairs[i].second].erase(twoViewImagesNumInliners[image_pairs[i].second].begin()+offset+1);
+						twoViewImages[image_pairs[i].second].insert(twoViewImages[image_pairs[i].second].begin() + offset, image_pairs[i].first);
+						twoViewImages[image_pairs[i].second].erase(twoViewImages[image_pairs[i].second].begin() + offset+1);
+						break;
+					}
+				}
+			}
+			
+		}
+		
 	}
+	twoViewImagesNumInliners.clear();
+	auto t2 = std::chrono::high_resolution_clock::now();
+	std::cout << "\n 2th method time cost: " << std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count() << std::endl;
 
-	/*twoViewInliers.clear();*/
+	//print out the inliers result
+	for (auto i : twoViewImages) {
+		std::cout << "\nthe "<< i.first << " th image result: ";
+		for (auto j : i.second) {
+			std::cout << j << " ";
+		}
+	}
 	//init kernel for comparison
 	kernel::robustKernel kernelobj(1, this->vocab_.NumVisualWords());
 	kernelobj.push_back(query_graphs[next_index_]);
@@ -319,39 +421,25 @@ int nbhd::nbhdGraph::Next() {
 			std::vector<cv::DMatch> twoViewMatches;
 
 			//two view geometry includes all possible matches that some pairs id may exceed the maxNumFeat.
+			//colmap automatically exchange the result if id1>id2
 			auto matchFeatId = database->ReadTwoViewGeometry(i.first, i.second[j]).inlier_matches;
 
 			//filter two view matches
 			std::vector < cv::DMatch> newMatches;
 			newMatches.reserve(matchFeatId.size());
-			if (i.first < i.second[j]) {
-				int idx1_limit = total_num_feats_i - fileManager::parameters::maxNumFeatures;
-				int idx2_limit = total_num_feats_j - fileManager::parameters::maxNumFeatures;
+			int idx1_limit = total_num_feats_i - fileManager::parameters::maxNumFeatures;
+			int idx2_limit = total_num_feats_j - fileManager::parameters::maxNumFeatures;
 
-				idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
-				idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
+			idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
+			idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
 				
-				for (auto m : matchFeatId) {
-					if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
-						newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
-							- idx1_limit, 0));
-					}
+			for (auto m : matchFeatId) {
+				if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
+					newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
+						- idx1_limit, 0));
 				}
 			}
-			else
-			{
-				int idx1_limit = total_num_feats_j - fileManager::parameters::maxNumFeatures;
-				int idx2_limit = total_num_feats_i - fileManager::parameters::maxNumFeatures;
-				idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
-				idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
-				
-				for (auto m : matchFeatId) {
-					if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
-						newMatches.push_back(cv::DMatch(int(m.point2D_idx1) - idx1_limit, int(m.point2D_idx2)
-							- idx2_limit, 0));
-					}
-				}
-			}
+			
 			
 			if (!graph::extend1to2(base_graph, exd_graph, newMatches)) {
 				std::cerr << "nbhdGraph: error: graph extention failed! with img id "<<i.first<<"\n";
@@ -443,3 +531,50 @@ while (!IGRAPH_VIT_END(viti)) {
 	//	}
 	//	std::cout << "\n";
 	//}
+
+
+
+
+
+//auto t1 = std::chrono::high_resolution_clock::now();
+//std::unordered_map<int, std::multimap<int, int, std::greater<int>> > twoViewImagesMap;
+//for (int i = 0; i < image_pairs.size(); i++) {
+//	if (std::find(candidates.begin(), candidates.end(), image_pairs[i].first) != candidates.end()) {
+//		if (twoViewImagesMap[image_pairs[i].first].size() < this->num_inliers_images_) {
+//			twoViewImagesMap[image_pairs[i].first].insert({ numInliers[i],image_pairs[i].second });
+//		}
+//		else
+//		{
+//			if (twoViewImagesMap[image_pairs[i].first].rbegin()->first < numInliers[i]) //if key: numInliers smaller than the new inserted element
+//			{
+//				twoViewImagesMap[image_pairs[i].first].erase(std::next(twoViewImagesMap[image_pairs[i].first].rbegin()).base());
+//				twoViewImagesMap[image_pairs[i].first].insert({ numInliers[i],image_pairs[i].second });
+//			}
+//		}
+//	}
+//	if (std::find(candidates.begin(), candidates.end(), image_pairs[i].second) != candidates.end()) {
+//		if (twoViewImagesMap[image_pairs[i].second].size() < this->num_inliers_images_) {
+//			twoViewImagesMap[image_pairs[i].second].insert({ numInliers[i],image_pairs[i].first });
+//		}
+//		else
+//		{
+//			if (twoViewImagesMap[image_pairs[i].second].rbegin()->first < numInliers[i]) //if key: numInliers smaller than the new inserted element
+//			{
+//				twoViewImagesMap[image_pairs[i].second].erase(std::next(twoViewImagesMap[image_pairs[i].second].rbegin()).base());
+//				twoViewImagesMap[image_pairs[i].second].insert({ numInliers[i],image_pairs[i].first });
+//			}
+//		}
+//	}
+//}
+////loop over the result
+//std::unordered_map<int, std::vector<int>> twoViewImages;
+//for (auto it : twoViewImagesMap) {
+//	for (auto it2 : it.second) {
+//		twoViewImages[it.first].push_back(it2.second);
+//	}
+//}
+//twoViewImagesMap.clear();
+//auto t2 = std::chrono::high_resolution_clock::now();
+//std::cout << "\n 1th method time cost: " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << std::endl;
+
+

@@ -157,6 +157,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="evaluation.h" />
     <ClInclude Include="nbhdGraph.h" />
     <ClInclude Include="featureTest.h" />
   </ItemGroup>

@@ -122,6 +122,9 @@ namespace fileManager {
 
 		//num of inlier images to keep
 		int numImageToKeep = 2;
+
+		//string record the exe path
+		std::string exe_path = "";
 	};
 	
 }
