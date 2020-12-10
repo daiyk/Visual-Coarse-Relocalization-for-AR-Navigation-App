@@ -21,23 +21,34 @@ namespace nbhd {
 		int NumDatabse() { if (database) { return database->NumImages(); } }
 		int NumQuery() { return query_images.size(); }
 		int NextIndex() { return next_index_; }
+		auto getDatabase() { return this->database; }
+		auto& getScores() { return scores; }
 		int Next();
+		int CompWithQueryArray();
+
 
 	private:
+		void computeExtList(std::vector<int>& candidates, std::unordered_map<int, std::vector<int>>& twoViewImages);
+		bool graphExtention(int i, std::string db_img_name, std::vector<int> twoViewImagesKeys, std::unordered_map<int, std::vector<int>>& twoViewImages, igraph_t& database_graph);
+		bool graphExtentionWithRecurKernel(int i, std::string db_img_name, std::vector<int> twoViewImagesKeys, std::unordered_map<int, std::vector<int>>& twoViewImages, igraph_t& database_graph);
 		int next_index_=-1;
+		int num_inliers_images_;
+		int max_num_features_;
 		bool use_vlfeat = false;
+		fileManager::graphManager* graph_manager;
 		cv::Mat readVocab(std::string vocabPath);
-		std::unique_ptr<matcher::kdTree> vocab;
-		matcher::colmapVisualIndex<> vocab_;
-		std::unique_ptr<kernel::covisMap> map;
 		colmap::Database* database = nullptr;
+		matcher::colmapVisualIndex<> vocab_;
+		std::unique_ptr<matcher::kdTree> vocab;
+		std::unique_ptr<kernel::covisMap> map;
 		std::vector<igraph_t> query_graphs;
 		std::vector<cv::Mat> query_images;
 		std::vector<std::string> query_image_names;
+		std::vector<std::vector<std::string>> db_image_names;
+		std::vector<std::vector<float>> scores;
 		std::string vocab_path_;
-		int num_inliers_images_;
 		std::ofstream write_stream_;
-		std::vector<std::unordered_map<int,float>> scores;
+		
 	};
 }
 #endif

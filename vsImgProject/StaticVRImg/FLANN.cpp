@@ -23,6 +23,8 @@ void FLANN::FLANNMatch(cv::Mat& descripts1, cv::Mat& descripts2, std::vector<cv:
         }
     }
 }
+
+
 void FLANN::FLANNImgsMatch(Mat& grayImg1, Mat& grayImg2, std::vector<DMatch>& good_matches)
 {
     //-- Step 1: Detect the keypoints using SIFT Detector, compute the descriptors

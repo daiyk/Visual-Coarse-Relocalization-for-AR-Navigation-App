@@ -7,9 +7,15 @@
 #include <ctime>
 #include <random>
 #include <colmap/feature/types.h>
+#include <colmap/util/bitmap.h>
 namespace helper {
 	//helper function to get current date
 	std::string dateTime();
+
+	std::vector<cv::KeyPoint> colmapToCvKpts(colmap::FeatureKeypoints& kpts);
+
+	//bitmap to mat helper function
+	cv::Mat bitmapToMat(colmap::Bitmap& bitmap);
 
 	//unpack octave number, copy from opencv source code https://github.com/opencv/opencv_contrib/blob/bebfd717485c79644a49ac406b0d5f717b881aeb/modules/xfeatures2d/src/sift.cpp#L214-L220
 	void unpackOctave(const cv::KeyPoint& kpt, int& octave, int& layer, float& scale);
@@ -23,6 +29,8 @@ namespace helper {
 	//truncate features and reserve top scales features
 	void ExtractTopFeatures(colmap::FeatureKeypoints* keypoints, colmap::FeatureVisualIDs* ids, const size_t num_features);
 
+	//truncate features and reserve top scales descriptors
+	void ExtractTopDescriptors(colmap::FeatureKeypoints* keypoints, colmap::FeatureDescriptors* descriptors, const size_t num_features = -1);
 
 	//1th score functions: multiplicative
 	void computeScore1(std::vector<std::vector<double>>& raw_scores, std::vector<size_t>& edge_nums, std::vector<double>& raw_self_scores, bool tfidfWeight = false);

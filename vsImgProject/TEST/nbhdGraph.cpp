@@ -8,6 +8,7 @@
 #include <fstream>
 #include <map>
 #include <chrono>
+#include <omp.h>
 
 void twoViewMatchesFilter(colmap::FeatureMatches& inlier_matches,int idx1_limit, int idx2_limit) {
 	//filter out the matches that id exceeds the max_num_features
@@ -37,19 +38,18 @@ std::vector<cv::DMatch> idsToMatches(const colmap::FeatureVisualIDs& ids, const 
 	return matches;
 }
 
-cv::Mat bitmapToMat(colmap::Bitmap &bitmap) {
-	cv::Mat imgBitmap(bitmap.Height(), bitmap.Width(), CV_8U);
-	auto dataFloat = bitmap.ConvertToRowMajorArray();
-
-	//transform bitmap to opencv image
-	for (int i = 0; i < bitmap.Height(); i++) {
-		for (int j = 0; j < bitmap.Width(); j++) {
-			imgBitmap.at<uchar>(i, j) = dataFloat[j + i * bitmap.Width()];
-		}
-	}
-
-	return imgBitmap;
-}
+//cv::Mat bitmapToMat(colmap::Bitmap &bitmap) {
+//	cv::Mat imgBitmap(bitmap.Height(), bitmap.Width(), CV_8U);
+//	auto dataFloat = bitmap.ConvertToRowMajorArray();
+//
+//	//transform bitmap to opencv image
+//	for (int i = 0; i < bitmap.Height(); i++) {
+//		for (int j = 0; j < bitmap.Width(); j++) {
+//			imgBitmap.at<uchar>(i, j) = dataFloat[j + i * bitmap.Width()];
+//		}
+//	}
+//	return imgBitmap;
+//}
 
 nbhd::nbhdGraph::nbhdGraph(){ 
 
@@ -64,7 +64,7 @@ void nbhd::nbhdGraph::init(const fileManager::covisOptions& options) {
 	database = new colmap::Database(options.database_path);
 
 	//open the result writer
-	this->write_stream_.open("nbhdTestResult.csv", std::fstream::out | std::fstream::app);
+	this->write_stream_.open("evaluation_nbhd.csv", std::fstream::out);
 
 	//scan the image list as query image
 	this->query_image_names = options.image_list;
@@ -78,6 +78,7 @@ void nbhd::nbhdGraph::init(const fileManager::covisOptions& options) {
 	//we use each image as query unit
 	this->query_images = this->Read(full_path);
 	this->scores.resize(query_images.size()); //resize the score vector to the length of query images
+	this->db_image_names.resize(query_images.size()); //resize the db_image_names to the query_size
 
 	//read dictionary and build kdtree
 	this->vocab_.Read(options.vocab_path);
@@ -93,16 +94,20 @@ void nbhd::nbhdGraph::init(const fileManager::covisOptions& options) {
 
 	this->num_inliers_images_ = options.numImageToKeep;
 
+	//max num of features allowed
+	this->max_num_features_ = options.max_num_features;
+
 	//construct the query graphs and store it
 	this->preprocess(options);
 }
 nbhd::nbhdGraph::~nbhdGraph() {
 	 database->Close();
+	 delete graph_manager;
 	 for (auto& i : query_graphs) {
 		 igraph_destroy(&i);
 	 }
-	 this->write_stream_.close();
- }
+}
+
 //read image from the paths and store in the object
 std::vector<cv::Mat> nbhd::nbhdGraph::Read(const std::vector<std::string> &paths) {
 	std::vector<cv::Mat> query_images;
@@ -119,7 +124,7 @@ std::vector<cv::Mat> nbhd::nbhdGraph::Read(const std::vector<std::string> &paths
 			std::cerr << "nbhd.read: Error: " << paths[i] << " read failed!\n";
 			return query_images;
 		}
-		query_images.push_back(bitmapToMat(bitimg));
+		query_images.push_back(helper::bitmapToMat(bitimg));
 		bitimg.Deallocate();
 	}
 	return query_images;
@@ -133,7 +138,6 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 
 	//search on the database and check the existence
 	if (use_vlfeat) {
-		DatabaseTransaction transaction(database);
 		for (int i = 0; i < NumQuery(); i++) {
 			if (this->database->ExistsImageWithName(this->query_image_names[i]))
 			{
@@ -142,13 +146,14 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 
 				//read descriptor 
 				auto visualIDs = this->database->ReadVisualIDs(imageIds).ids;
+				
 				std::vector < cv::DMatch> matches;
 				matches.reserve(visualIDs.rows());
 				for (int j = 0; j < visualIDs.rows(); j++) {
 					matches.push_back(cv::DMatch(j, visualIDs(j, 1), -1));
 				}
 				std::vector<cv::KeyPoint> points;
-				graph::buildFull(matches, points, query_graphs[i]);
+				graph::buildFull(matches, points, query_graphs[i],this->query_image_names[i]);
 
 			}
 			else { //otherwise compute the descriptors for the new image
@@ -178,16 +183,20 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 					matches.push_back(cv::DMatch(j, imageIds(j, 0), -1));
 
 				}
-				graph::buildFull(matches, points, query_graphs[i]);
+				graph::buildFull(matches, points, query_graphs[i],this->query_image_names[i]);
 			}
 		}
-		//release images
-		for (auto i : this->query_images) {
-			i.release();
-		}
+		////release images
+		//for (auto i : this->query_images) {
+		//	i.release();
+		//}
 	}
 	else
 	{
+		if (options.exe_path == "") {
+			std::cerr << "\nERROR: for colmap feature extraction, path to this porgram executable 'exe_path' must not be empty";
+			return;
+		}
 		std::vector<colmap::FeatureDescriptors> query_descripts;
 		std::vector<std::string> argStrs;
 		int argv_count = 0;
@@ -198,7 +207,7 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 
 		argStrs.push_back(options.image_path);
 		argStrs.push_back("--SiftExtraction.max_num_features");
-		argStrs.push_back(std::to_string(fileManager::parameters::maxNumFeatures));
+		argStrs.push_back(std::to_string(this->max_num_features_));
 		std::vector<char*> argChar;
 		argChar.reserve(argStrs.size());
 		for (int i = 0; i < argStrs.size(); i++) {
@@ -213,7 +222,7 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 		for (int i = 0; i < NumQuery(); i++) {
 			auto imageIds = this->vocab_.FindWordIds(query_descripts[i], num_neighbors, num_checks, num_threads);
 			
-			//transform back to opencv matches
+			//RunSimpleFeatureExtractor has defined the maxnum of features
 			/*helper::ExtractTopFeatures(&(this->database->ReadKeypoints(i.first)), &base_graph_ids, fileManager::parameters::maxNumFeatures);
 			auto matches = idsToMatches(base_graph_ids, i.first);*/
 			std::vector < cv::DMatch> matches;
@@ -223,9 +232,12 @@ void nbhd::nbhdGraph::preprocess(const fileManager::covisOptions& options) {
 				//always the first one is the id because the eigen matrix is [rows,1] for single neighboor
 				matches.push_back(cv::DMatch(j, imageIds(j, 0), -1));
 			}
-			graph::buildFull(matches, points, query_graphs[i]);
+			graph::buildFull(matches, points, query_graphs[i],this->query_image_names[i]);
 		}
 	}
+	std::string graph_folder_path = fs::path(options.exe_path).parent_path().string();
+	graph_manager = new fileManager::graphManager(graph_folder_path);
+
 	//build invert_index_
 	for (auto i : database->ReadAllImages()) {
 		auto ids = database->ReadVisualIDs(i.ImageId());
@@ -270,6 +282,123 @@ cv::Mat nbhd::nbhdGraph::readVocab(std::string vocabPath) {
 	return vocab;
 }
 
+int nbhd::nbhdGraph::CompWithQueryArray() {
+	DatabaseTransaction transaction(database);
+	//process next_index_ query image and search locations in the database for the best image
+	//build clique
+
+	for (int next_index = 0; next_index < this->NumQuery(); next_index++) {
+		std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> labs(new igraph_vector_t(), &igraph_vector_destroy);
+		igraph_vector_init(labs.get(), 0);
+		VANV(&query_graphs[next_index], "label", labs.get());
+
+		//from igraph labs vector to build FeatureVisualIDs
+		colmap::FeatureVisualids visual_id;
+		visual_id.resize(igraph_vector_size(labs.get()), Eigen::NoChange);
+		for (int i = 0; i < igraph_vector_size(labs.get()); i++) {
+			visual_id(i, 0) = i;
+			visual_id(i, 1) = VECTOR(*labs)[i];
+		}
+		colmap::FeatureVisualIDs qry_id(visual_id, this->vocab_.NumVisualWords(), this->vocab_path_);
+		//query the database and get candidate matching images
+		std::vector<int> candidates;
+		this->map->Query(qry_id, candidates);
+
+		//better to isolate the graph extention test function
+		//query database and do graph extention based on covisibility
+		std::unordered_map<int, std::vector<int>> twoViewImages;
+		this->computeExtList(candidates, twoViewImages);
+
+		//init kernel for comparison
+		kernel::recurRobustKel kernelobj(1, this->vocab_.NumVisualWords());
+		kernelobj.push_back(query_graphs[next_index]);
+
+
+		//*****do graph extention******//
+		int gCount = 0;
+		std::vector<int> twoViewImagesKeys;
+		for (auto item : twoViewImages) {
+			twoViewImagesKeys.push_back(item.first);
+		}
+
+		//resize the scores vector
+		this->scores[next_index].resize(twoViewImagesKeys.size());
+		this->db_image_names[next_index].resize(twoViewImagesKeys.size());
+		int num_thread = 6;
+		omp_set_num_threads(num_thread);
+		#pragma omp parallel
+		{
+			#pragma omp for schedule(dynamic)
+			for (auto t = 0; t < num_thread; t++) {
+				int start = t * (twoViewImagesKeys.size() / num_thread);
+				int end = (t + 1) * (twoViewImagesKeys.size() / num_thread);
+				if (t == num_thread - 1) {
+					end = twoViewImagesKeys.size();
+				}
+				std::vector<igraph_t> database_graphs;
+				
+				for (int i = start; i < end; i++) {
+					//build graph for each candidate location
+					//base graph is the key value graph
+					//need to check the root_path first
+					igraph_t database_graph;
+					std::string db_img_name;
+					#pragma omp critical(database)
+					{
+						db_img_name = fs::path(this->database->ReadImage(twoViewImagesKeys[i]).Name()).stem().string();
+					}
+					this->db_image_names[next_index][i] = db_img_name;
+					std::ostringstream pcommon, pcliques;
+					pcommon.precision(3), pcliques.precision(3);
+					pcommon << std::fixed << fileManager::parameters::PCommonwords;
+					pcliques << std::fixed << fileManager::parameters::PCliques;
+					std::string db_graph_name = db_img_name + "_" + std::to_string(this->max_num_features_) + "_" + pcommon.str() + "_" + pcliques.str();
+					if (!this->graph_manager->Read(&database_graph, db_graph_name)) {
+						std::cout << "\nnbhdGraph.Next: cannot find corresponding graph in the folder, build the graph......";
+						this->graphExtention(i, db_img_name, twoViewImagesKeys, twoViewImages, database_graph);
+					}
+
+					//do comparison with the base graph and stores the score
+					
+					database_graphs.push_back(database_graph);
+					/*std::cout << "\nNumber " << gCount << " th image's graph extention passed";*/
+					/*gCount++;
+					if (gCount % 100 == 0) {
+						this->write_stream_.flush();
+					}
+					igraph_destroy(&database_graph);*/
+				}
+				auto candidate_scores = kernelobj.robustKernelCompWithQueryArray(database_graphs);
+				for (int j = start; j < end; j++) {
+					this->scores[next_index][j] = candidate_scores[0][j];
+				}
+				for (auto& g : database_graphs) {
+					igraph_destroy(&g);
+				}
+				
+			}
+		}
+	}
+	//write the result
+	int dCount = 0;
+	while (true) {
+		bool status = false;
+		for (int k = 0; k < this->scores.size(); k++) {
+			if (dCount < this->scores[k].size()) {
+				this->write_stream_ << this->query_image_names[k] << "," << this->db_image_names[k][dCount] << "," << this->scores[k][dCount] << ",";
+				status = true;
+			}
+		}
+		this->write_stream_ << "\n";
+		dCount++;
+		if (!status) {
+			break;
+		}
+	}
+	return -1;
+}
+
+
 int nbhd::nbhdGraph::Next() {
 	if (next_index_ == -1) {
 		return 0;
@@ -277,8 +406,6 @@ int nbhd::nbhdGraph::Next() {
 	if (next_index_ == query_graphs.size()) {
 		return 1;
 	}
-
-	DatabaseTransaction transaction(database);
 	//process next_index_ query image and search locations in the database for the best image
 	//build clique
 	
@@ -298,21 +425,356 @@ int nbhd::nbhdGraph::Next() {
 	std::vector<int> candidates;
 	this->map->Query(qry_id, candidates);
 
+	//better to isolate the graph extention test function
 	//query database and do graph extention based on covisibility
+	std::unordered_map<int, std::vector<int>> twoViewImages;
+	this->computeExtList(candidates, twoViewImages);
+
+	//print out the inliers result
+	/*for (auto i : twoViewImages) {
+		std::cout << "\nthe "<< i.first << " th image result: ";
+		for (auto j : i.second) {
+			std::cout << j << " ";
+		}
+	}*/
+	//init kernel for comparison
+	kernel::robustKernel kernelobj(1, this->vocab_.NumVisualWords());
+	/*kernel::recurRobustKel kernelobj(1, this->vocab_.NumVisualWords());*/
+	kernelobj.push_back(query_graphs[next_index_]);
+
+	
+	//*****do graph extention******//
+	int gCount = 0;
+	std::vector<int> twoViewImagesKeys;
+	for (auto item : twoViewImages) {
+		twoViewImagesKeys.push_back(item.first); //twoViewImageKeys has stored all candidate image id
+	}
+
+	//resize the scores vector
+	this->scores[next_index_].resize(twoViewImagesKeys.size());
+	this->db_image_names[next_index_].resize(twoViewImagesKeys.size());
+	omp_set_num_threads(6);
+	#pragma omp parallel
+	{
+		#pragma omp for schedule(dynamic)
+		for (auto i = 0; i < twoViewImagesKeys.size();i++) {
+			//build graph for each candidate location
+			//base graph is the key value graph
+			//need to check the root_path first
+			igraph_t database_graph;
+			std::string db_img_name;
+			#pragma omp critical(database)
+			{
+				db_img_name = fs::path(this->database->ReadImage(twoViewImagesKeys[i]).Name()).stem().string();
+			}
+			std::ostringstream pcommon, pcliques;
+			pcommon.precision(3), pcliques.precision(3);
+			pcommon << std::fixed << fileManager::parameters::PCommonwords;
+			pcliques << std::fixed << fileManager::parameters::PCliques;
+			std::string db_graph_name = db_img_name + "_" + std::to_string(this->max_num_features_) + "_" + pcommon.str() + "_" + pcliques.str();
+			/*std::string db_graph_name = db_img_name + "Deg"+std::to_string(fileManager::parameters::maxNumDeg)+"_" + std::to_string(this->max_num_features_) + "_" + pcommon.str() + "_" + pcliques.str();*/
+
+			if (!this->graph_manager->Read(&database_graph, db_graph_name)) {
+				std::cout << "\nnbhdGraph.Next: cannot find corresponding graph in the folder, build the graph......";
+				this->graphExtention(i, db_img_name,twoViewImagesKeys, twoViewImages, database_graph);
+				/*this->graphExtentionWithRecurKernel(i, db_img_name, twoViewImagesKeys, twoViewImages, database_graph);*/
+
+				/*std::string db_img_name;
+				#pragma omp critical(database)
+				{
+					db_img_name = fs::path(this->database->ReadImage(twoViewImagesKeys[i]).Name()).stem().string();
+				}
+				std::ostringstream pcommon, pcliques;
+				pcommon.precision(3), pcliques.precision(3);
+				pcommon << std::fixed << fileManager::parameters::PCommonwords;
+				pcliques << std::fixed << fileManager::parameters::PCliques;
+				std::string db_graph_name = db_img_name + "_" + std::to_string(this->max_num_features_) + "_" + pcommon.str() + "_" + pcliques.str();
+				igraph_t database_graph;
+				if (!graph_manager->Read(&database_graph, db_graph_name)) {*/
+				//std::cout << "\nnbhdGraph.Next: cannot find corresponding graph in the folder, build the graph......";
+				////scan the folder and found 
+				//colmap::FeatureVisualIDs base_graph_ids;
+				//int total_num_feats_i;
+				////from database read the corresponding images and 
+				//#pragma omp critical
+				//{
+				//	base_graph_ids = this->database->ReadVisualIDs(twoViewImagesKeys[i]);
+				//	total_num_feats_i = (base_graph_ids).ids.rows();
+				//	helper::ExtractTopFeatures(&(this->database->ReadKeypoints(twoViewImagesKeys[i])), &base_graph_ids, this->max_num_features_);
+				//}
+
+				//auto matches = idsToMatches(base_graph_ids, twoViewImagesKeys[i]);
+				//std::vector<cv::KeyPoint> pts;
+				//graph::buildFull(matches, pts, database_graph,db_img_name);
+
+				//if (GAN(&database_graph, "n_vertices") == 0) {
+				//	std::cerr << "nbhdGraph.Next: error: base graph is empty!\n";
+				//	break;
+				//}
+
+				////extend the graph
+				//for (int j = 0; j < twoViewImages[twoViewImagesKeys[i]].size(); j++) {
+				//	colmap::FeatureVisualIDs exd_graph_ids;
+				//	colmap::FeatureMatches matchFeatId;
+				//	int total_num_feats_j;
+				//	std::string exd_graph_name;
+				//	#pragma omp critical
+				//	{
+				//		exd_graph_name = fs::path(this->database->ReadImage(twoViewImages[twoViewImagesKeys[i]][j]).Name()).stem().string();
+				//		exd_graph_ids = this->database->ReadVisualIDs(twoViewImages[twoViewImagesKeys[i]][j]);
+				//		total_num_feats_j = exd_graph_ids.ids.rows();
+				//		helper::ExtractTopFeatures(&(this->database->ReadKeypoints(twoViewImages[twoViewImagesKeys[i]][j])), &exd_graph_ids, this->max_num_features_);
+				//		matchFeatId = database->ReadTwoViewGeometry(twoViewImagesKeys[i], twoViewImages[twoViewImagesKeys[i]][j]).inlier_matches;
+				//	}
+
+				//	auto exdmatches = idsToMatches(exd_graph_ids, twoViewImages[twoViewImagesKeys[i]][j]);
+
+				//	igraph_t exd_graph;
+				//	std::vector<cv::KeyPoint> pts;
+				//	graph::buildFull(exdmatches, pts, exd_graph,exd_graph_name);
+
+				//	if (GAN(&exd_graph, "n_vertices") == 0) {
+				//		std::cerr << "nbhdGraph.Next: error: extend graph is empty!\n";
+				//		break;
+				//	}
+
+				//	std::vector<cv::DMatch> twoViewMatches;
+
+				//	//two view geometry includes all possible matches that some pairs id may exceed the maxNumFeat.
+				//	//filter two view matches
+				//	std::vector < cv::DMatch> newMatches;
+				//	newMatches.reserve(matchFeatId.size());
+				//	int idx1_limit = total_num_feats_i - this->max_num_features_;
+				//	int idx2_limit = total_num_feats_j - this->max_num_features_;
+
+				//	idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
+				//	idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
+
+				//	for (auto m : matchFeatId) {
+				//		if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
+				//			newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
+				//				- idx1_limit, 0));
+				//		}
+				//	}
+
+				//	if (!graph::extend1to2(database_graph, exd_graph, newMatches)) {
+				//		std::cerr << "nbhdGraph: error: graph extention failed! with img id " << twoViewImagesKeys[i] << "\n";
+				//		break;
+				//	}
+				//	igraph_destroy(&exd_graph);
+				//}
+				//write graph to the folder
+			 /*	#pragma omp critical
+				{
+					graph_manager->Write(database_graph);
+				}*/
+				//}
+			}
+
+			//do comparison with the base graph and stores the score
+			std::vector<igraph_t> database_graphs;
+			database_graphs.push_back(database_graph);
+			auto candidate_scores = kernelobj.robustKernelCompWithQueryArray(database_graphs);
+
+			this->scores[next_index_][i]=candidate_scores[0][0];
+			this->db_image_names[next_index_][i] = db_img_name;
+			/*std::cout << "\nNumber " << gCount << " th image's graph extention passed";*/
+			gCount++;
+			if (gCount % 100 == 0) {
+				this->write_stream_.flush();
+			}
+			igraph_destroy(&database_graph);
+		}
+	}
+
+	//write the result
+	for (int k = 0; k < scores[next_index_].size();k++) {
+		this->write_stream_ << this->query_image_names[next_index_] << "," << this->db_image_names[next_index_][k]<< "," << this->scores[next_index_][k] << "\n";
+	}
+	
+	next_index_++;
+	return -1;
+}
+
+bool nbhd::nbhdGraph::graphExtention(int i, std::string db_img_name, std::vector<int> twoViewImagesKeys, std::unordered_map<int, std::vector<int>>& twoViewImages, igraph_t &database_graph) {
+	//resize the scores vector
+
+	//build graph for each candidate location
+	//base graph is the key value graph
+	//need to check the root_path first
+		//scan the folder and found 
+		colmap::FeatureVisualIDs base_graph_ids;
+		int total_num_feats_i;
+		colmap::FeatureKeypoints base_graph_kpts;
+		//from database read the corresponding images and 
+#pragma omp critical(database)
+		{
+			base_graph_ids = this->database->ReadVisualIDs(twoViewImagesKeys[i]);
+			base_graph_kpts = this->database->ReadKeypoints(twoViewImagesKeys[i]);
+
+		}
+		total_num_feats_i = (base_graph_ids).ids.rows();
+		helper::ExtractTopFeatures(&(base_graph_kpts), &base_graph_ids, this->max_num_features_);
+		auto matches = idsToMatches(base_graph_ids, twoViewImagesKeys[i]);
+		std::vector<cv::KeyPoint> pts;
+		graph::buildFull(matches, pts, database_graph, db_img_name);
+
+		if (GAN(&database_graph, "n_vertices") == 0) {
+			std::cerr << "nbhdGraph.Next: error: base graph is empty!\n";
+			return false;
+		}
+
+		//extend the graph
+		for (int j = 0; j < twoViewImages[twoViewImagesKeys[i]].size(); j++) {
+			colmap::FeatureVisualIDs exd_graph_ids;
+			colmap::FeatureMatches matchFeatId;
+			int total_num_feats_j;
+			std::string exd_graph_name;
+			colmap::FeatureKeypoints exd_graph_kpts;
+#pragma omp critical(database)
+			{
+				exd_graph_name = fs::path(this->database->ReadImage(twoViewImages[twoViewImagesKeys[i]][j]).Name()).stem().string();
+				exd_graph_ids = this->database->ReadVisualIDs(twoViewImages[twoViewImagesKeys[i]][j]);
+				matchFeatId = database->ReadTwoViewGeometry(twoViewImagesKeys[i], twoViewImages[twoViewImagesKeys[i]][j]).inlier_matches;
+				exd_graph_kpts = this->database->ReadKeypoints(twoViewImages[twoViewImagesKeys[i]][j]);
+			}
+			total_num_feats_j = exd_graph_ids.ids.rows();
+			helper::ExtractTopFeatures(&(exd_graph_kpts), &exd_graph_ids, this->max_num_features_);
+
+			auto exdmatches = idsToMatches(exd_graph_ids, twoViewImages[twoViewImagesKeys[i]][j]);
+
+			igraph_t exd_graph;
+			std::vector<cv::KeyPoint> pts;
+			graph::buildFull(exdmatches, pts, exd_graph, exd_graph_name);
+
+			if (GAN(&exd_graph, "n_vertices") == 0) {
+				std::cerr << "nbhdGraph.Next: error: extend graph is empty!\n";
+				return false;
+			}
+			std::vector<cv::DMatch> twoViewMatches;
+
+			//two view geometry includes all possible matches that some pairs id may exceed the maxNumFeat.
+			//filter two view matches
+			std::vector < cv::DMatch> newMatches;
+			newMatches.reserve(matchFeatId.size());
+			int idx1_limit = total_num_feats_i - this->max_num_features_;
+			int idx2_limit = total_num_feats_j - this->max_num_features_;
+
+			idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
+			idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
+
+			for (auto m : matchFeatId) {
+				if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
+					newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
+						- idx1_limit, 0));
+				}
+			}
+			if (!graph::extend1to2(database_graph, exd_graph, newMatches)) {
+				std::cerr << "nbhdGraph: error: graph extention failed! with img id " << twoViewImagesKeys[i] << "\n";
+				return false;
+			}
+			igraph_destroy(&exd_graph);
+		}
+		//write graph to the folder
+		this->graph_manager->Write(database_graph);
+}
+
+bool nbhd::nbhdGraph::graphExtentionWithRecurKernel(int i, std::string db_img_name, std::vector<int> twoViewImagesKeys, std::unordered_map<int, std::vector<int>>& twoViewImages, igraph_t& database_graph) {
+	//resize the scores vector
+
+	//build graph for each candidate location
+	//base graph is the key value graph
+	//need to check the root_path first
+		//scan the folder and found 
+	colmap::FeatureVisualIDs base_graph_ids;
+	int total_num_feats_i;
+	colmap::FeatureKeypoints base_graph_kpts;
+	//from database read the corresponding images and 
+#pragma omp critical(database)
+	{
+		base_graph_ids = this->database->ReadVisualIDs(twoViewImagesKeys[i]);
+		base_graph_kpts = this->database->ReadKeypoints(twoViewImagesKeys[i]);
+
+	}
+	total_num_feats_i = (base_graph_ids).ids.rows();
+	helper::ExtractTopFeatures(&(base_graph_kpts), &base_graph_ids, this->max_num_features_);
+	auto matches = idsToMatches(base_graph_ids, twoViewImagesKeys[i]);
+	std::vector<cv::KeyPoint> pts = helper::colmapToCvKpts(base_graph_kpts);
+	graph::build(matches, pts, database_graph, db_img_name);
+
+	if (GAN(&database_graph, "n_vertices") == 0) {
+		std::cerr << "nbhdGraph.Next: error: base graph is empty!\n";
+		return false;
+	}
+
+	//extend the graph
+	for (int j = 0; j < twoViewImages[twoViewImagesKeys[i]].size(); j++) {
+		colmap::FeatureVisualIDs exd_graph_ids;
+		colmap::FeatureMatches matchFeatId;
+		int total_num_feats_j;
+		std::string exd_graph_name;
+		colmap::FeatureKeypoints exd_graph_kpts;
+#pragma omp critical(database)
+		{
+			exd_graph_name = fs::path(this->database->ReadImage(twoViewImages[twoViewImagesKeys[i]][j]).Name()).stem().string();
+			exd_graph_ids = this->database->ReadVisualIDs(twoViewImages[twoViewImagesKeys[i]][j]);
+			matchFeatId = database->ReadTwoViewGeometry(twoViewImagesKeys[i], twoViewImages[twoViewImagesKeys[i]][j]).inlier_matches;
+			exd_graph_kpts = this->database->ReadKeypoints(twoViewImages[twoViewImagesKeys[i]][j]);
+		}
+		total_num_feats_j = exd_graph_ids.ids.rows();
+		helper::ExtractTopFeatures(&(exd_graph_kpts), &exd_graph_ids, this->max_num_features_);
+
+		auto exdmatches = idsToMatches(exd_graph_ids, twoViewImages[twoViewImagesKeys[i]][j]);
+
+		igraph_t exd_graph;
+		std::vector<cv::KeyPoint> pts = helper::colmapToCvKpts(exd_graph_kpts);;
+		graph::build(exdmatches, pts, exd_graph, exd_graph_name);
+
+		if (GAN(&exd_graph, "n_vertices") == 0) {
+			std::cerr << "nbhdGraph.Next: error: extend graph is empty!\n";
+			return false;
+		}
+		std::vector<cv::DMatch> twoViewMatches;
+
+		//two view geometry includes all possible matches that some pairs id may exceed the maxNumFeat.
+		//filter two view matches
+		std::vector < cv::DMatch> newMatches;
+		newMatches.reserve(matchFeatId.size());
+		int idx1_limit = total_num_feats_i - this->max_num_features_;
+		int idx2_limit = total_num_feats_j - this->max_num_features_;
+
+		idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
+		idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
+
+		for (auto m : matchFeatId) {
+			if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
+				newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
+					- idx1_limit, 0));
+			}
+		}
+		if (!graph::extend1to2(database_graph, exd_graph, newMatches)) {
+			std::cerr << "nbhdGraph: error: graph extention failed! with img id " << twoViewImagesKeys[i] << "\n";
+			return false;
+		}
+		igraph_destroy(&exd_graph);
+	}
+	//write graph to the folder
+	this->graph_manager->Write(database_graph);
+}
+void nbhd::nbhdGraph::computeExtList(std::vector<int> &candidates, std::unordered_map<int, std::vector<int>>& twoViewImages) {
+	/*** second method ***/
+	/*** num in the candidates are imageId not the index of image! ***/
 	std::vector<std::pair<colmap::image_t, colmap::image_t>> image_pairs;
 	std::vector<int> numInliers;
 	database->ReadTwoViewGeometryNumInliers(&image_pairs, &numInliers);
-	
-	/*** second method ***/
-	auto t1 = std::chrono::high_resolution_clock::now();;
-	std::unordered_map<int, std::vector<int>> twoViewImages;
-	std::unordered_map<int,std::vector<int>> twoViewImagesNumInliners;
+	twoViewImages.clear();
+	std::unordered_map<int, std::vector<int>> twoViewImagesNumInliners;
 	for (auto i : candidates) {
 		twoViewImages[i].reserve(this->num_inliers_images_);
 		twoViewImagesNumInliners[i].reserve(this->num_inliers_images_);
 	}
 	//loop through the pairs and find the corresponding inlier image for merging need to forward and backward checking the numinliers
-	for (int i = 0; i < image_pairs.size();i++) {
+	for (int i = 0; i < image_pairs.size(); i++) {
 		/*auto rel = std::find(candidates.begin(), candidates.end(), image_pairs[i].first);
 		if (rel != candidates.end()) {
 			twoViewInliers[image_pairs[i].first].insert({ numInliers[i], image_pairs[i].second });
@@ -330,14 +792,14 @@ int nbhd::nbhdGraph::Next() {
 				for (it = twoViewImagesNumInliners[image_pairs[i].first].begin(); it != twoViewImagesNumInliners[image_pairs[i].first].end(); it++) {
 					if (*it < numInliers[i]) {
 						int offset = it - twoViewImagesNumInliners[image_pairs[i].first].begin();
-						twoViewImagesNumInliners[image_pairs[i].first].insert(it,numInliers[i]); //insert the new elements and erase the old element
-						twoViewImagesNumInliners[image_pairs[i].first].erase(twoViewImagesNumInliners[image_pairs[i].first].begin()+offset+1);
+						twoViewImagesNumInliners[image_pairs[i].first].insert(it, numInliers[i]); //insert the new elements and erase the old element
+						twoViewImagesNumInliners[image_pairs[i].first].erase(twoViewImagesNumInliners[image_pairs[i].first].begin() + offset + 1);
 						twoViewImages[image_pairs[i].first].insert(twoViewImages[image_pairs[i].first].begin() + offset, image_pairs[i].second);
-						twoViewImages[image_pairs[i].first].erase(twoViewImages[image_pairs[i].first].begin() + offset+1);
+						twoViewImages[image_pairs[i].first].erase(twoViewImages[image_pairs[i].first].begin() + offset + 1);
 						break;
 					}
 				}
-	
+
 			}
 		}
 		if (twoViewImages.find(image_pairs[i].second) != twoViewImages.end()) {
@@ -354,118 +816,16 @@ int nbhd::nbhdGraph::Next() {
 					if (*it < numInliers[i]) {
 						int offset = it - twoViewImagesNumInliners[image_pairs[i].second].begin();
 						twoViewImagesNumInliners[image_pairs[i].second].insert(it, numInliers[i]);
-						twoViewImagesNumInliners[image_pairs[i].second].erase(twoViewImagesNumInliners[image_pairs[i].second].begin()+offset+1);
+						twoViewImagesNumInliners[image_pairs[i].second].erase(twoViewImagesNumInliners[image_pairs[i].second].begin() + offset + 1);
 						twoViewImages[image_pairs[i].second].insert(twoViewImages[image_pairs[i].second].begin() + offset, image_pairs[i].first);
-						twoViewImages[image_pairs[i].second].erase(twoViewImages[image_pairs[i].second].begin() + offset+1);
+						twoViewImages[image_pairs[i].second].erase(twoViewImages[image_pairs[i].second].begin() + offset + 1);
 						break;
 					}
 				}
 			}
-			
 		}
-		
 	}
 	twoViewImagesNumInliners.clear();
-	auto t2 = std::chrono::high_resolution_clock::now();
-	std::cout << "\n 2th method time cost: " << std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count() << std::endl;
-
-	//print out the inliers result
-	for (auto i : twoViewImages) {
-		std::cout << "\nthe "<< i.first << " th image result: ";
-		for (auto j : i.second) {
-			std::cout << j << " ";
-		}
-	}
-	//init kernel for comparison
-	kernel::robustKernel kernelobj(1, this->vocab_.NumVisualWords());
-	kernelobj.push_back(query_graphs[next_index_]);
-
-	
-	//*****do graph extention******//
-	int gCount = 0;
-	for (auto& i : twoViewImages) {
-		//build graph for each candidate location
-		//base graph is the key value graph
-		colmap::FeatureVisualIDs base_graph_ids = this->database->ReadVisualIDs(i.first);
-		int total_num_feats_i = (base_graph_ids).ids.rows();
-
-		helper::ExtractTopFeatures(&(this->database->ReadKeypoints(i.first)),&base_graph_ids,fileManager::parameters::maxNumFeatures);
-		auto matches = idsToMatches(base_graph_ids, i.first);
-		
-		igraph_t base_graph;
-		std::vector<cv::KeyPoint> pts;
-		graph::buildFull(matches, pts, base_graph);
-		
-		if (GAN(&base_graph, "n_vertices") == 0) {
-			std::cerr << "nbhdGraph.Next: error: base graph is empty!\n" ;
-			break;
-		}
-
-		//extend the graph
-		for (int j = 0; j < i.second.size(); j++) {
-			auto exd_graph_ids = this->database->ReadVisualIDs(i.second[j]);
-			int total_num_feats_j = exd_graph_ids.ids.rows();
-
-			helper::ExtractTopFeatures(&(this->database->ReadKeypoints(i.second[j])), &exd_graph_ids, fileManager::parameters::maxNumFeatures);
-			auto exdmatches = idsToMatches(exd_graph_ids, i.second[j]);
-
-			igraph_t exd_graph;
-			std::vector<cv::KeyPoint> pts;
-			graph::buildFull(exdmatches, pts, exd_graph);
-
-			if (GAN(&exd_graph, "n_vertices") == 0) {
-				std::cerr << "nbhdGraph.Next: error: extend graph is empty!\n";
-				break;
-			}
-
-			std::vector<cv::DMatch> twoViewMatches;
-
-			//two view geometry includes all possible matches that some pairs id may exceed the maxNumFeat.
-			//colmap automatically exchange the result if id1>id2
-			auto matchFeatId = database->ReadTwoViewGeometry(i.first, i.second[j]).inlier_matches;
-
-			//filter two view matches
-			std::vector < cv::DMatch> newMatches;
-			newMatches.reserve(matchFeatId.size());
-			int idx1_limit = total_num_feats_i - fileManager::parameters::maxNumFeatures;
-			int idx2_limit = total_num_feats_j - fileManager::parameters::maxNumFeatures;
-
-			idx1_limit = idx1_limit > 0 ? idx1_limit : 0;
-			idx2_limit = idx2_limit > 0 ? idx2_limit : 0;
-				
-			for (auto m : matchFeatId) {
-				if (int(m.point2D_idx1) > idx1_limit && int(m.point2D_idx2) > idx2_limit) {
-					newMatches.push_back(cv::DMatch(int(m.point2D_idx2) - idx2_limit, int(m.point2D_idx1)
-						- idx1_limit, 0));
-				}
-			}
-			
-			
-			if (!graph::extend1to2(base_graph, exd_graph, newMatches)) {
-				std::cerr << "nbhdGraph: error: graph extention failed! with img id "<<i.first<<"\n";
-				break;
-			}
-			igraph_destroy(&exd_graph);
-		}
-		//do comparison with the base graph and stores the score
-		std::vector<igraph_t> database_graph;
-		database_graph.push_back(base_graph);
-		auto candidate_scores = kernelobj.robustKernelCompWithQueryArray(database_graph);
-		scores[next_index_].insert({i.first,candidate_scores[0][0]});
-		igraph_destroy(&base_graph);
-		std::cout << "\nNumber " << gCount << " th image extention tested";
-		gCount++;
-	}
-
-	//write the result
-	for (auto i : scores[next_index_]) {
-		this->write_stream_ << this->query_image_names[next_index_] << "," << i.first << "," << i.second << "\n";
-	}
-	if (next_index_ % 10 == 0) {
-		this->write_stream_.flush();
-	}
-	next_index_++;
-	return -1;
 }
 
 

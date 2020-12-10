@@ -35,9 +35,10 @@ void vladTrain(std::string path) {
 int main(int argc, const char* argv[]) {
 	fileManager::read_user_set();
 	igraph_i_set_attribute_table(&igraph_cattribute_table);
-	/*std::cout << "argument number: " << argc<<"\n";*/
-	/*featureExtTest();
-	return 0;*/
+	/*grahamhall_test(std::stoi(argv[1]),argv[0]);*/
+	/*graphManagerTests(argv[0]);*/
+	featureExtTest();
+	return 0;
 	if (argc < 2) {
 		//std::cout << "please provides the path to UKBench imagesets" << std::endl;
 		graphExtendTest();

@@ -15,7 +15,10 @@ namespace vlad {
 	public:
 		vlad(std::vector<std::string>& paths); //training and writing the centers and encoder
 		vlad(std::string centerPath, std::string encPath); //read the centers and encoder 
+		vlad(std::vector<cv::Mat> descripts); //train the vlad center and encoding vector for the given database descriptors
+		~vlad();
 		void search(cv::Mat img, std::vector<int>& ind, std::vector<double>& score, int bestOfAll); //img must be grayImg
+		void searchWithDescripts(cv::Mat img, std::vector<int>& ind, std::vector<double>& score, int bestOfAll);
 		cv::Mat1f& getEncoder() { return this->enc; }
 	private:
 		void write_to_file(std::string name);

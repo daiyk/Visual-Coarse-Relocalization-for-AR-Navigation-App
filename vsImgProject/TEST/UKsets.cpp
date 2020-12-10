@@ -332,7 +332,7 @@ void UKB::UKRecurTest(int argc, const char* argv[], int sampleSize, int imgsetSi
 		}
 
 		//compute scores for the query graphs, with tfidf weighting on
-		std::vector<std::vector<float>> scores_block = kernelCompObj.robustKernelCompWithQueryArray(databaseGraphs,source_indexs);
+		std::vector<std::vector<float>> scores_block = kernelCompObj.robustKernelCompWithQueryArray(databaseGraphs,&source_indexs);
 
 		//assignment to the scores vector
 		for (int m = 0; m < sampleSize; m++) {
@@ -623,8 +623,6 @@ void UKB::UKtest(int argc, const char* argv[], int sampleSize, int imgsetSize) {
 	std::cout << "total mean score is " << score_sum / sampleSize << std::endl;
 	UKB::UKResWriter("UKtest_sample_" + std::to_string(sampleSize), single_scores);
 }
-
-
 int UKB::UKBench::UKBdataRead(std::string path) {
 	//define the size of datasets
 	if (imgPaths.size() != 0) {

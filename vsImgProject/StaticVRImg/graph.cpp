@@ -90,7 +90,13 @@ bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts
 	SETVANV(&mygraph, "posx", &posx_vec);
 	SETVANV(&mygraph, "posy", &posy_vec);
 
-	igraph_simplify(&mygraph, true, true, 0);
+	igraph_attribute_combination_t comb;
+	igraph_attribute_combination(&comb,
+		"weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+		"", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+		IGRAPH_NO_MORE_ATTRIBUTES);
+
+	igraph_simplify(&mygraph, true, true, &comb);
 	return true;
 }
 
@@ -99,7 +105,7 @@ bool graph::buildEmpty(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts
 //1th arg: macthes of visual words to features
 //2th arg: all keypoints with opencv format
 //3th arg: reference to non-initial igraph, final graph will be stored here
-bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph) {
+bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts, igraph_t& mygraph,std::string graph_name) {
 	igraph_init::attri_init();
 	igraph_integer_t n_vertices = matches.size();
 	igraph_bool_t loops = false;
@@ -113,7 +119,7 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 	}
 
 	int status = igraph_full(&mygraph, n_vertices, false, loops);
-	SETGAS(&mygraph, "name", "fullgraph");  // set graph name attribute
+	SETGAS(&mygraph, "name", graph_name.c_str());  // set graph name attribute
 	SETGAN(&mygraph, "n_vertices", n_vertices); // set vertices number attribute
 
 	//add attributes like distance, labels and so on
@@ -142,7 +148,12 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 	SETVANV(&mygraph, "label", &lab_vec);
 
 	//igraph init weight attributes
-	igraph_simplify(&mygraph, 1, 1, 0);
+	igraph_attribute_combination_t comb;
+	igraph_attribute_combination(&comb,
+		"weight", IGRAPH_ATTRIBUTE_COMBINE_SUM,
+		"", IGRAPH_ATTRIBUTE_COMBINE_FIRST,
+		IGRAPH_NO_MORE_ATTRIBUTES);
+	igraph_simplify(&mygraph, true, true, &comb);
 	int n_edges = igraph_ecount(&mygraph);
 	std::vector<igraph_real_t> w(n_edges);
 	igraph_real_t* weights = w.data();
@@ -157,7 +168,7 @@ bool graph::buildFull(std::vector<DMatch>& matches, std::vector<KeyPoint>& kpts,
 
 //if matches is empty, a empty graph is returned
 //mygraph must be a uninit graph
-bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph) {
+bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igraph_t &mygraph,std::string graph_name) {
 	igraph_init::attri_init();
 	//build from matches result and parameter setting
 	if (matches.size() > kpts.size()) {
@@ -169,17 +180,17 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	if (matches.size() == 0) {
 		igraph_empty(&mygraph, 0, IGRAPH_UNDIRECTED);
 		SETGAN(&mygraph, "n_vertices", 0);
+		SETGAS(&mygraph, "name", "UNDEFINED");
 		std::cout << "graph.build: warning: zero matches empty graph returned" << std::endl;
 		return true;
 	}
 	clock_t sTime = clock();
-	size_t n_vertices = matches.size();
+	int n_vertices = matches.size();
 	
 	igraph_empty(&mygraph,n_vertices,IGRAPH_UNDIRECTED);
-	SETGAS(&mygraph, "name", "kernelGraph");  // set graph name attribute
+	SETGAS(&mygraph, "name", (graph_name+"Deg"+std::to_string(params::maxNumDeg)).c_str());  // set graph name attribute
 	SETGAN(&mygraph, "n_vertices", n_vertices); // set vertices number attribute
 	// add more information to the graph, like the vertices number and edge number
-
 	//define container for keypoints and compute distance
 	Eigen::MatrixXd pos(n_vertices, 2);
 	Eigen::MatrixXd dists(n_vertices, n_vertices);
@@ -212,32 +223,32 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 
 	/*igraph_real_t *labels = (igraph_real_t*)malloc(sizeof(igraph_real_t)*n_vertices);
 	igraph_real_t* scales = (igraph_real_t*)malloc(sizeof(igraph_real_t) * n_vertices); */// change it to std vector
-	std::vector<igraph_real_t> labs(n_vertices), scls(n_vertices),posx(n_vertices),posy(n_vertices);
+	std::vector<igraph_real_t> labs(n_vertices);// scls(n_vertices), posx(n_vertices), posy(n_vertices);
 	igraph_real_t* labels = labs.data();
-	igraph_real_t* scales = scls.data();
+	/*igraph_real_t* scales = scls.data();
 	igraph_real_t* positionx = posx.data();
-	igraph_real_t* positiony = posy.data();
+	igraph_real_t* positiony = posy.data();*/
 	
 	//allocate word label to query nodes
 	for (size_t i = 0; i < n_vertices;i++) {
 		labs[i] = matches[i].trainIdx;
-		scls[i] = kpts[matches[i].queryIdx].size;
+		/*scls[i] = kpts[matches[i].queryIdx].size;
 		posx[i] = kpts[matches[i].queryIdx].pt.x;
-		posy[i] = kpts[matches[i].queryIdx].pt.y;
+		posy[i] = kpts[matches[i].queryIdx].pt.y;*/
 	}
 	//igraph add labels and degrees attributes 
-	igraph_vector_t lab_vec, edge_vec,scale_vec,posx_vec,posy_vec;
+	igraph_vector_t lab_vec, edge_vec;// scale_vec, posx_vec, posy_vec;
 	
 	igraph_vector_view(&lab_vec, labels, n_vertices);
-	igraph_vector_view(&scale_vec, scales, n_vertices);
+	/*igraph_vector_view(&scale_vec, scales, n_vertices);
 	igraph_vector_view(&posx_vec, positionx, n_vertices);
-	igraph_vector_view(&posy_vec, positiony, n_vertices);
+	igraph_vector_view(&posy_vec, positiony, n_vertices);*/
 	/*igraph_vector_init(&deg_vec, n_vertices);*/
 
 	SETVANV(&mygraph, "label", &lab_vec);
-	SETVANV(&mygraph, "scale", &scale_vec);
+	/*SETVANV(&mygraph, "scale", &scale_vec);
 	SETVANV(&mygraph, "posx", &posx_vec);
-	SETVANV(&mygraph, "posy", &posy_vec);
+	SETVANV(&mygraph, "posy", &posy_vec);*/
 	/*SETVANV(&mygraph, "degree", &deg_vec);*/
 	
 	//add edge
@@ -257,8 +268,8 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 		*	the limiting number  = params::maxNumDeg
 		*	b. the edge distance is constrained that edge should not exceed radDegLim * kpts.scale
 		*/
-		for (size_t j = 1; j<params::maxNumDeg+1 && j < n_vertices; j++) {
-			if (dists(i, indexes(j, i)) < radDegLim * VAN(&mygraph,"scale",i)) {
+		for (size_t j = 1; j < params::maxNumDeg+1 && j < n_vertices; j++) {
+			if (dists(i, indexes(j, i)) < radDegLim){ //* VAN(&mygraph,"scale",i)) {
 				edges.push_back(i);
 				edges.push_back(indexes(j,i));
 			}
@@ -271,6 +282,7 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_vector_view(&edge_vec, edges.data(), edges.size());
 	igraph_add_edges(&mygraph, &edge_vec, 0);
 	SETGAN(&mygraph, "edges", igraph_ecount(&mygraph)); //set edge number attribute
+	SETGAN(&mygraph, "degree", fileManager::parameters::maxNumDeg);
 
 	//set edge weight attributes, can be deleted later
 	std::vector<igraph_real_t> eweight(igraph_ecount(&mygraph), 1.0);
@@ -288,7 +300,6 @@ bool graph::build(std::vector<DMatch> &matches, std::vector<KeyPoint> &kpts, igr
 	igraph_simplify(&mygraph, true, true, &comb);
 	/*std::cout << " ->graph building spend " << (clock() - sTime) / double(CLOCKS_PER_SEC) << " sec...." << std::endl;*/
 	return true;
-
 }
 
 //source graph will be extended

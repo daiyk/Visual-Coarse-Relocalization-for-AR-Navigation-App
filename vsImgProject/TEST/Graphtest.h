@@ -7,6 +7,7 @@
 #include "StaticVRImg/matcher.h"
 #include "StaticVRImg/kernel.h"
 #include "StaticVRImg/helper.h"
+#include "StaticVRImg/cluster.h"
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d.hpp>
@@ -21,10 +22,59 @@
 #include <numeric>
 #include <string>
 #include <nlohmann/json.hpp>
+#include <colmap/exe/colmap_util.h>
 #include <fstream>
-#include "StaticVRImg/cluster.h"
 
 
+inline void graphManagerTests(std::string exe_path) {
+	std::string testQueryPath = "E:\\datasets\\south-building\\image_query_test";
+	std::string vocabPath = "E:\\vocab_tree_flickr100K_words32K.bin";
+	std::string databasePath = "E:\\datasets\\south-building\\southbuildingdatabase.db";
+	//build graph on top of the image
+	std::vector<colmap::FeatureDescriptors> query_descripts;
+	std::vector<std::string> path_in_folder;
+	fileManager::read_files_in_path(testQueryPath,path_in_folder);
+	//from the image build the graph
+	std::vector<std::string> argStrs;
+	int argv_count = 0;
+	argStrs.push_back(exe_path);
+	argStrs.push_back("--database_path");
+	argStrs.push_back(databasePath);
+	argStrs.push_back("--image_path");
+
+	argStrs.push_back(testQueryPath);
+	argStrs.push_back("--SiftExtraction.max_num_features");
+	argStrs.push_back(std::to_string(fileManager::parameters::maxNumFeatures));
+	std::vector<char*> argChar;
+	argChar.reserve(argStrs.size());
+	for (int i = 0; i < argStrs.size(); i++) {
+		argChar.push_back(const_cast<char*>(argStrs[i].c_str()));
+	}
+	colmap::RunSimpleFeatureExtractor(argChar.size(), argChar.data(), query_descripts);
+	matcher::colmapVisualIndex<> match(vocabPath);
+	std::cout << query_descripts[0].rows() << "   " << query_descripts[0].cols();
+	auto ids = match.FindWordIds(query_descripts[0], 1, 256, -1);
+
+	std::vector < cv::DMatch> matches;
+	matches.reserve(query_descripts[0].rows());
+	for (int j = 0; j < query_descripts[0].rows(); j++) {
+		//always the first one is the id because the eigen matrix is [rows,1] for single neighboor
+		matches.push_back(cv::DMatch(j, ids(j, 0), -1));
+
+	}
+	std::vector<cv::KeyPoint> points;
+	igraph_t testGraph;
+	graph::buildFull(matches, points, testGraph,fs::path(path_in_folder[0]).stem().string());
+
+	fileManager::graphManager graph_manager((fs::path(exe_path).parent_path()).string());
+	graph_manager.Write(testGraph);
+	igraph_t testReadGraph;
+	if (graph_manager.Read(&testReadGraph, fs::path(path_in_folder[0]).stem().string())) {
+		std::cout << "\nTest graph name: " << GAS(&testReadGraph, "name");
+		std::cout << "\nTest graph vertices: " << GAN(&testReadGraph, "n_vertices");
+	}
+
+}
 
 inline void covisMapTest() {
 	//define testing graphs

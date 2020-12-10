@@ -15,7 +15,7 @@
   "vladCenters": 64,
   "sampleSize": 80,
   "imgsetSize": 1000,
-  "maxNumFeatures": 2000,
+  "maxNumFeatures": 1000,
   "maxNumOrient": 2,
   "maxNumComp": 256,
   "PCommonwords": 0.1,

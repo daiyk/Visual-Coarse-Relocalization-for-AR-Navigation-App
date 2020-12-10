@@ -1,6 +1,17 @@
 #include "helper.h"
 
+cv::Mat helper::bitmapToMat(colmap::Bitmap& bitmap) {
+    cv::Mat imgBitmap(bitmap.Height(), bitmap.Width(), CV_8U);
+    auto dataFloat = bitmap.ConvertToRowMajorArray();
 
+    //transform bitmap to opencv image
+    for (int i = 0; i < bitmap.Height(); i++) {
+        for (int j = 0; j < bitmap.Width(); j++) {
+            imgBitmap.at<uchar>(i, j) = dataFloat[j + i * bitmap.Width()];
+        }
+    }
+    return imgBitmap;
+}
 cv::Mat helper::DescriptorFloatToUint(cv::Mat descripts) {
     cv::Mat unsignedDescripts(descripts.rows, descripts.cols, CV_8U);
     for (int i = 0;i< descripts.rows; i++) {
@@ -85,7 +96,14 @@ void helper::computeScore3(std::vector<std::vector<double>>& raw_scores, std::ve
         }
 }
 
-
+std::vector<cv::KeyPoint> helper::colmapToCvKpts(colmap::FeatureKeypoints& kpts) {
+    std::vector<cv::KeyPoint> cv_kpts;
+    cv_kpts.resize(kpts.size());
+    for (int i = 0; i < kpts.size(); i++) {
+        cv_kpts.push_back(cv::KeyPoint(kpts[i].x, kpts[i].y,kpts[i].ComputeScale()));
+    }
+    return cv_kpts;
+}
 
 void helper::ExtractTopFeatures(colmap::FeatureKeypoints* keypoints, colmap::FeatureVisualIDs* ids, const size_t num_features=-1) {
 
@@ -134,6 +152,54 @@ void helper::ExtractTopFeatures(colmap::FeatureKeypoints* keypoints, colmap::Fea
     *keypoints = top_scale_keypoints;
     ids->ids = top_scale_ids;   
 }
+
+void helper::ExtractTopDescriptors(colmap::FeatureKeypoints* keypoints, colmap::FeatureDescriptors* descriptors, const size_t num_features) {
+
+    if (keypoints->size() != descriptors->rows()) {
+        throw std::invalid_argument("Error: visual ids and keypoints are not in the same length.");
+    }
+    if (num_features == 0) {
+        throw std::invalid_argument("Error: num of features need to be non-zero");
+    }
+
+    if (static_cast<size_t>(descriptors->rows()) <= num_features || num_features == -1) {
+        return;
+    }
+
+    colmap::FeatureKeypoints top_scale_keypoints;
+    colmap::FeatureDescriptors top_scale_descriptors;
+
+    /*std::vector<std::pair<size_t, float>> scales;
+     scales.reserve(static_cast<size_t>(keypoints->size()));
+     for (size_t i = 0; i < keypoints->size(); ++i) {
+         scales.emplace_back(i, (*keypoints)[i].ComputeScale());
+     }
+
+     std::partial_sort(scales.begin(), scales.begin() + num_features,
+         scales.end(),
+         [](const std::pair<size_t, float> scale1,
+             const std::pair<size_t, float> scale2) {
+                 return scale1.second > scale2.second;
+         });*/
+
+    top_scale_keypoints.reserve(num_features);
+    top_scale_descriptors.resize(num_features, descriptors->cols()); // number of sift descriptor digit
+    int top_scale_num_feats = 0;
+    for (int i = 0; i < num_features; i++) {
+        int kp_index = (*keypoints).size() - num_features + i;
+        top_scale_keypoints.push_back((*keypoints)[kp_index]);
+        top_scale_descriptors.row(i) = (*descriptors).row(kp_index);
+    }
+    /*for (size_t i = 0; i < num_features; ++i) {
+        featRes.push_back(scales[i].first);
+        top_scale_keypoints[i] = (*keypoints)[scales[i].first];
+        top_scale_ids.row(i) = ids->ids.row(scales[i].first);
+    }*/
+
+    *keypoints = top_scale_keypoints;
+    *descriptors = top_scale_descriptors;
+}
+
 std::unordered_set<int> helper::pickSet(int N, int k, std::mt19937& gen)
 {
     std::unordered_set<int> elems;

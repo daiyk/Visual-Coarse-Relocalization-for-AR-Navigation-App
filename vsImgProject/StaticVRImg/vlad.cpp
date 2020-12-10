@@ -10,7 +10,7 @@
 
 using params = fileManager::parameters;
 using namespace cv;
-bool useCovdet = true;
+bool useCovdet = false;
 vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
     //read imgs from files and extracts features
 
@@ -41,6 +41,7 @@ vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
         
         n_descrips.push_back(descripts1.rows);
         allDescripts.push_back(descripts1);
+        std::cout << i << " th image is finsihed extraction\n";
     }
 
     //all kmeans parameters setting corresponding with OpenCV setting
@@ -56,7 +57,7 @@ vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
 
     //write vlad center to file
     std::vector<cv::KeyPoint> kpts;
-    fileManager::write_to_file("UKB_vlad_" + std::to_string(params::vladCenters), kpts, centers);
+    fileManager::write_to_file("vlad_" + std::to_string(params::vladCenters), kpts, centers);
 
     //kd-tree building
     int dim = params::descriptDim;
@@ -93,7 +94,7 @@ vlad::vlad::vlad(std::vector<std::string>& paths) :tree(nullptr) {
         //encode encoding to the Mat
         this->enc.push_back(enc);
     }
-    this->write_to_file("UKB_vlad_" + std::to_string(params::vladCenters));
+    this->write_to_file("vlad_" + std::to_string(params::vladCenters));
 }
 
 //read the pretrained centers and encoding vector
@@ -120,6 +121,96 @@ vlad::vlad::vlad(std::string centerPath, std::string encPath):tree(nullptr) {
     vl_kdforest_build(tree, params::vladCenters, kCenters.ptr<float>(0));
     vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
     vl_kdforest_set_max_num_comparisons(tree, params::maxNumComp); // set max num of comparison
+}
+vlad::vlad::vlad(std::vector<cv::Mat> descripts): tree(nullptr) {
+    int vladCenters = params::vladCenters;
+    cv::Mat centers;//centers mat
+    
+    //rebuild descripts to a single mat
+    cv::Mat allDescripts;
+    for (int i = 0; i < descripts.size(); i++) {
+        allDescripts.push_back(descripts[i]);
+    }
+    cluster::vl_visual_word_compute(allDescripts, centers, vladCenters);
+    
+    if (!centers.isContinuous() || !allDescripts.isContinuous())
+    {
+        throw std::runtime_error("ERROR: source descriptors or query descriptor are not continuous, matching function terminated");
+    }
+    allDescripts.release();
+    this->kCenters = centers;
+    //write vlad center to file
+    std::vector<cv::KeyPoint> kpts;
+    fileManager::write_to_file("vlad_" + std::to_string(params::vladCenters), kpts, centers);
+
+    //kd-tree building
+    int dim = params::descriptDim;
+    int numOfTree = 1;
+    this->tree = vl_kdforest_new(VL_TYPE_FLOAT, dim, numOfTree, VlDistanceL2);
+
+    vl_kdforest_build(tree, vladCenters, kCenters.ptr<float>(0));
+    vl_kdforest_set_thresholding_method(tree, VL_KDTREE_MEDIAN); //use median as the criteria
+    vl_kdforest_set_max_num_comparisons(tree, params::maxNumComp); // set max num of comparison
+    
+    for (int i = 0; i < descripts.size(); i++) {
+        int num_query_descrips = descripts[i].rows;
+        std::vector<vl_uint32> NNs(num_query_descrips);
+        std::vector<float> NNdist(num_query_descrips);
+
+        //vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
+        //float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);
+        int numOfleaf = vl_kdforest_query_with_array(tree, NNs.data(), 1, num_query_descrips, NNdist.data(), descripts[i].ptr<float>(0));
+
+        //build assignment and encode the imageset in vlad vectors
+        std::vector<float> assignments(num_query_descrips * vladCenters, 0);
+        for (int i = 0; i < num_query_descrips; i++) {
+            assignments[i * vladCenters + NNs[i]] = 1.;
+        }
+        cv::Mat1f enc(vladCenters, params::descriptDim, float(0.0));
+
+        /*std::vector<float> enc(vladCenters * params::descriptDim);*/
+
+        //encoding with vlad and store the encoding vector
+        vl_vlad_encode(enc.ptr<float>(0), VL_TYPE_FLOAT, kCenters.ptr<float>(0), params::descriptDim, vladCenters, descripts[i].ptr<float>(0), num_query_descrips, assignments.data(), VL_VLAD_FLAG_NORMALIZE_COMPONENTS);
+
+        //encode encoding to the Mat
+        this->enc.push_back(enc);
+
+        std::cout << i << "th image finished vlad encoding\n";
+    }
+    this->write_to_file("vlad_" + std::to_string(params::vladCenters));
+}
+vlad::vlad::~vlad() {
+    vl_kdforest_delete(this->tree);
+    this->enc.release();
+    this->kCenters.release();
+}
+
+void vlad::vlad::searchWithDescripts(cv::Mat query_descript, std::vector<int>& ind, std::vector<double>& score, int bestOfAll) {
+    if (!this->tree) {
+        throw std::invalid_argument("VLAD: Tree is not set search failed!");
+    }
+
+    int num_descrips = query_descript.rows;
+    std::vector<vl_uint32> NNs(num_descrips);
+    std::vector<float> NNdist(num_descrips);
+
+    //vl_uint32* NNs = (vl_uint32*)vl_malloc(params::numOfNN * sizeof(vl_uint32) * numQuery);
+    //float* NNdist = (float*)vl_malloc(params::numOfNN * sizeof(float) * numQuery);
+    int numOfleaf = vl_kdforest_query_with_array(this->tree, NNs.data(), 1, num_descrips, NNdist.data(), query_descript.ptr<float>(0));
+
+    //build assignment and encode the imageset in vlad vectors
+    std::vector<float> assignments(num_descrips * params::vladCenters, 0);
+    for (int i = 0; i < num_descrips; i++) {
+        assignments[i * params::vladCenters + NNs[i]] = 1.;
+    }
+    cv::Mat1f query_enc(params::vladCenters, params::descriptDim, float(0.0));
+
+    //encoding with vlad and store the encoding vector
+    vl_vlad_encode(query_enc.ptr<float>(0), VL_TYPE_FLOAT, kCenters.ptr<float>(0), params::descriptDim, params::vladCenters, query_descript.ptr<float>(0), num_descrips, assignments.data(), VL_VLAD_FLAG_NORMALIZE_COMPONENTS);
+    //search the index of img that is minimal to the 
+    this->enc_index(query_enc, ind, score, bestOfAll);
+
 }
 
 

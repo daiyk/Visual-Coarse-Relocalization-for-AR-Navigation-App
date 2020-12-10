@@ -21,12 +21,11 @@ namespace UKB {
 	{
 	public:
 		UKBench() :categoryNum(0) {};
+		int UKBdataRead(std::string path);
 		UKBench(std::string& path, int catNum) {
 			this->categoryNum = catNum;
 			this->UKBdataRead(path);
 		};
-
-		int UKBdataRead(std::string path);
 		void UKBcomputeTFIDF(probModel::tfidf& ukbTFIDF, matcher::kdTree& kdtreeMatcher);
 		void UKdataExt(int begin, int end, std::vector<std::string>& imgs, std::vector<int>& indexs); //return begin~end opencv mat images
 		void UKdataTrain(int n_catTrain);

@@ -2,6 +2,7 @@
 #ifndef _FEATURETEST_H
 #define _FEATURETEST_H
 #include "nbhdGraph.h"
+#include "evaluation.h"
 #include <fstream>
 #include <StaticVRImg/fileManager.h>
 #include <StaticVRImg/extractor.h>
@@ -33,6 +34,36 @@ void eigen2cv(const Eigen::Matrix<_Tp, _rows, _cols, _options, _maxRows, _maxCol
 		cv::Mat _src(src.rows(), src.cols(), cv::DataType<_Tp>::type,
 			(void*)src.data(), src.stride() * sizeof(_Tp));
 		_src.copyTo(dst);
+	}
+}
+
+//exe_path and database path is required for the colmap feature extraction 
+void grahamhall_test(int control_number, const char* exe_path) {
+	option_dataset op_ds;
+	option_feature op_feat;
+	op_ds.database_path = "E:\\datasets\\graham-hall\\images\\exterior_database";//"E:\\datasets\\south-building\\images_database";
+	op_ds.colmap_database_path = "E:\\datasets\\graham-hall\\grahamhalldatabase.db";//"E:\\datasets\\south-building\\southbuildingtest.db";
+	op_ds.vocab_path = "E:\\vocab_tree_flickr100K_words32K.bin";
+	op_ds.query_path = "E:\\datasets\\graham-hall\\images\\exterior_query_test";//"E:\\datasets\\south-building\\image_query_test";
+	op_ds.vlad_centers_path = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\vsImgProject\\TEST\\Result\\vlad_64_kmeansCenter.yml";
+	op_ds.vlad_encoding_path = "D:\\thesis\\Visual-Coarse-Relocalization-for-AR-Navigation-App\\vsImgProject\\TEST\\Result\\vlad_64_vladEnc.yml";
+	op_feat.exe_path = exe_path;
+	op_feat.level = control_number;
+	grahamhall testObj(op_ds, op_feat);
+
+	//train for the vlad center
+	testObj.Read();
+	testObj.preprocess();
+	while (true) {
+		int status = testObj.Next();
+		if (status == 0){
+			std::cerr << "evalution: error happens during graphObj operations" << std::endl;
+			break;
+		}
+		std::cout << "status = " << status << std::endl;
+		if (status == 1) {
+			break; //finish and break
+		}
 	}
 }
 void visualWordsTest() {
@@ -92,7 +123,18 @@ void visualWordsTest() {
 }
 void featureExtTest(){
 	std::string imgPath = "E:\\datasets\\south-building\\images\\P1180142.JPG";
-	colmap::Database database("E:\\datasets\\south-building\\southbuildingdatabase.db");
+	colmap::Database database("E:\\datasets\\gerrard-hall\\gerrard-hall\\geerarddb.db");
+	std::string points3D_path = "E:\\datasets\\gerrard-hall\\gerrard-hall\\sparse\\points3D.txt";
+	DatabaseTransaction transationn(&database);
+	std::cout << "\nNum of images in database: " << database.NumImages();
+	auto overlap_matrix = fileManager::read_point3Ds(points3D_path, database.NumImages());
+	for (int k = 0; k < overlap_matrix.cols(); k++) {
+		for (int j = 0; j < overlap_matrix.rows(); j++) {
+			std::cout << overlap_matrix(k, j)<<"  ";
+		}
+		std::cout << "\n";
+	}
+	return;
 	auto imgMat = cv::imread(imgPath, cv::IMREAD_GRAYSCALE);
 	//test the extractor
 	std::vector<cv::KeyPoint> imgKpts;

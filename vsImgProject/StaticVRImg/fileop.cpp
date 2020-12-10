@@ -1,6 +1,7 @@
 #include "fileManager.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include "helper.h"
 #include <igraph.h>
 
@@ -57,10 +58,11 @@ double fileManager::parameters::PCommonwords = 0.04;
 *   paths: must be empty string vector, the scaned file paths are stored here
 *   path: string of path to the folder for scan files
 */
-void fileManager::read_files_in_path(std::string path, std::vector<std::string> &paths){
+void fileManager::read_files_in_path(std::string path, std::vector<std::string> &paths, std::vector<std::string> extensions){
     fs::path imgs_path = path;
     if (!imgs_path.empty() && !fs::exists(imgs_path)) {
-        cout << "Mode Train: ERROR: provided imgs path doesn't exist!" << endl;
+        cout << "read_files_in_path: provided root path doesn't exist!" << endl;
+        return;
     }
     paths.clear();
     for (const auto& entry : fs::directory_iterator(imgs_path)) {
@@ -69,18 +71,114 @@ void fileManager::read_files_in_path(std::string path, std::vector<std::string> 
         if (idx != std::string::npos)
         {
             std::string extension = entry.path().string().substr(idx + 1);
-            if (extension == "jpg" || extension == "JPG" || extension == "JPEG") {
+            if (!extensions.empty() && std::find(extensions.begin(),extensions.end(),extension)!=extensions.end()) {
                 paths.push_back(entry.path().string());
-                cout << "Files in Path: img is added with: " << entry.path().string() << "......" << endl;
+                cout << "Files in Path: file is added with: " << entry.path().string() << "......" << endl;
             }
-            else {
-                cout << "File in path: img " + entry.path().string() + ": Extension " + extension + " is not supported ignore the file." << endl;
+            else
+            {
+                cout << "Files in Path: file: " << entry.path() << " is not with the allowed extensions, ignore the file......" << endl;
             }
+           
+            
         }
     }
 
 }
 
+Eigen::MatrixXd fileManager::read_point3Ds(std::string file_path,int num_images) {
+    std::ifstream input(file_path,std::ifstream::in);
+
+    //loop over the file and read the point3D
+    std::string line;
+    int count = 0;
+    Eigen::MatrixXd overlap_matrix = Eigen::MatrixXd::Zero(num_images+1, num_images+1);
+    while (std::getline(input, line)) {
+        if (count < 3)//ignore the first three commentlines
+        {
+            count++;
+            continue;
+        }
+        std::istringstream subinput(line);
+        std::vector<int> imageIds;
+        int icount = 0;
+        /*std::cout << line << std::endl;*/
+        for (std::string subline;std::getline(subinput, subline,' ');icount++) {
+            if (icount >= 8&&icount%2==0) {
+                imageIds.push_back(std::stoi(subline));
+            }
+        }
+        
+        //iterate through and add to overlap matrix
+        for (int i = 0; i < imageIds.size(); i++) {
+            for (int j = i + 1; j < imageIds.size(); j++) {
+                overlap_matrix(imageIds[i], imageIds[j]) += 1;
+                overlap_matrix(imageIds[j], imageIds[i]) += 1;
+            }
+        }
+    }
+    return overlap_matrix;
+}
+
+
+Eigen::MatrixXd fileManager::read_imageId(std::string file_path, int n_images) {
+    std::ifstream input(file_path, std::ifstream::in);
+    std::unordered_map<int, int> imageId_to_idx;
+    std::vector<std::vector<int>> points3D_id_to_2D;
+    std::string line;
+    Eigen::MatrixXd overlapMatrix = Eigen::MatrixXd::Zero(n_images, n_images);
+    int count = 0;
+    while (std::getline(input, line)) {
+        if (count < 4) {
+            count++;
+            continue;
+        }
+        if (count % 2 == 0) {
+            std::istringstream subinput(line);
+            for (std::string subline; std::getline(subinput, subline, ' ');) {
+                imageId_to_idx[std::stoi(subline)] = (count - 4)/int(2);
+                break;
+            }
+        }
+        else
+        {
+            int last = 0, next = 0;
+            std::vector<std::string> strs;
+            std::string subline;
+            std::stringstream subinput(line);
+            while (std::getline(subinput, subline, ' ')) {
+                strs.push_back(subline);
+            }
+            /*while ((next = line.find(" ", last)) != string::npos)
+            {
+                strs.push_back(line.substr(last, next - last));
+                last = next + 1;
+            }*/
+            std::vector<int> sub_points3D_id_to_2D;
+            for (int i = 0; i < strs.size(); i++) {
+                if ((i+1) % 3 == 0 && std::stoi(strs[i])!=-1) {
+                    sub_points3D_id_to_2D.push_back(std::stoi(strs[i]));
+                }
+            }
+            points3D_id_to_2D.push_back(sub_points3D_id_to_2D);
+        }
+        count++; 
+    }
+    //compute the overlap matrix
+    for (int i = 0; i < n_images; i++) {
+        for (int j = 0; j < n_images; j++) {
+            std::vector<int> v_intersection;
+            std::sort(points3D_id_to_2D[i].begin(), points3D_id_to_2D[i].end());
+            std::sort(points3D_id_to_2D[j].begin(), points3D_id_to_2D[j].end());
+            std::set_intersection(points3D_id_to_2D[i].begin(), points3D_id_to_2D[i].end(),
+                points3D_id_to_2D[j].begin(), points3D_id_to_2D[j].end(),
+                std::back_inserter(v_intersection));
+            overlapMatrix(i, j) = (float)v_intersection.size() / points3D_id_to_2D[i].size();
+            overlapMatrix(j, i) = (float)v_intersection.size() / points3D_id_to_2D[j].size();
+        }
+    }
+    return overlapMatrix;
+}
 void fileManager::write_to_file(std::string name, std::vector<KeyPoint>& kpts, Mat& kCenters) {
     if (!fs::exists("Result")) {
         fs::create_directories("Result");
@@ -297,7 +395,7 @@ void fileManager::write_graph(igraph_t& graph, string name, string mode) {
         igraph_set_warning_handler(warning);
     }
     else {
-        std::cout << "write graph: unsupported graph saving mode" << std::endl;
+        std::cerr << "write graph: unsupported graph saving mode" << std::endl;
         throw std::invalid_argument("unsupported saving mode");
     }
 }
@@ -313,7 +411,7 @@ void fileManager::read_user_set(fs::path params) {
 
     ifstream f(params.c_str());
     if (!f) {
-        std::cout << "Read Parameters: file read failed" << endl;
+        std::cerr << "Read Parameters: file read failed" << endl;
         throw std::runtime_error("USER_SET_FILE_READ_FAILED");
     }
     //check the status, throw exception for error
@@ -347,8 +445,20 @@ void fileManager::read_user_set(fs::path params) {
     fileManager::parameters::tfidfPath = jsonlist.value("tfidfPath", fileManager::parameters::tfidfPath);
 }
 
-//class graphManager
-bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
+/********class graphManager********/
+fileManager::graphManager::graphManager(std::string root_path) {
+    root_path_ = (fs::path(root_path)/"graphs").string();
+    igraph_i_set_attribute_table(&igraph_cattribute_table);
+    //scan the path
+    std::vector<std::string> files_path;
+    std::vector<std::string> allowed_extension = { "bin" };
+    fileManager::read_files_in_path(root_path_, this->_graph_names, allowed_extension);
+    for (auto& name : _graph_names) {
+        name = fs::path(name).stem().string();
+    }
+
+}
+bool fileManager::graphManager::Write(igraph_t mygraph) {
 
     if (!igraph_cattribute_has_attr(&mygraph, IGRAPH_ATTRIBUTE_VERTEX, "label")) {
         std::cerr << "\ngraphManager.writeGraph: missing \"label\" vertex attributes.\n";
@@ -362,14 +472,16 @@ bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
         std::cerr << "\ngraphManager.writeGraph: empty graph, stop writeing.\n";
         return false;
     }
-    if (graph_name_ == "") {
+    if (GAS(&mygraph, "name") == "") {
         std::cerr << "\ngraphManager.writeGraph: no graph name specified.\n";
         return false;
     }
-    this->iobuffer_["name"] = graph_name_;
+    json outputBuffer;
+    std::string graph_name_ = GAS(&mygraph, "name");
+    outputBuffer["name"] = graph_name_;
 
     //write vertices
-    this->iobuffer_["verices"] = (int)GAN(&mygraph, "n_vertices");
+    outputBuffer["n_vertices"] = (int)GAN(&mygraph, "n_vertices");
     //write label
     std::unique_ptr<igraph_vector_t, void(*)(igraph_vector_t*)> labels(new igraph_vector_t(), &igraph_vector_destroy);
     igraph_vector_init(labels.get(), 0);
@@ -379,7 +491,7 @@ bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
     for (int i = 0; i < igraph_vector_size(labels.get()); i++) {
         lab_vec.push_back(VECTOR(*labels)[i]);
     }
-    if (!writeLabels(lab_vec))
+    if (!writeLabels(lab_vec,outputBuffer))
         return false;
 
     //write weighrs
@@ -391,7 +503,7 @@ bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
     for (int i = 0; i < igraph_vector_size(weights.get()); i++) {
         wei_vec.push_back(VECTOR(*weights)[i]);
     }
-    if (!writeWeights(wei_vec)) {
+    if (!writeWeights(wei_vec,outputBuffer)) {
         return false;
     }
 
@@ -404,52 +516,113 @@ bool fileManager::graphManager::writeGraph(igraph_t mygraph) {
     for (int i = 0; i < igraph_vector_size(edges.get()); i++) {
         edge_vec.push_back(VECTOR(*edges)[i]);
     }
-    if (!writeEdges(edge_vec)) {
+    if (!writeEdges(edge_vec,outputBuffer)) {
         return false;
     }
 
-    auto jsonbin = json::to_bson(this->iobuffer_);
-
+    auto jsonbin = json::to_msgpack(outputBuffer);
+    
     //write to file
     std::ofstream fp;
-    boost::filesystem::path root_path(this->root_path_);
-    std::string file_path = (root_path / (graph_name_ + ".bin")).string();
+    //check the existence of root_path_
+    if (!fs::exists(fs::path(this->root_path_))) {
+        fs::create_directories(this->root_path_);
+    }
+
+    std::ostringstream pcommon, pcliques;
+    pcommon.precision(3), pcliques.precision(3);
+    pcommon << std::fixed << parameters::PCommonwords;
+    pcliques << std::fixed << parameters::PCliques;
+    std::string full_graph_name = graph_name_ + "_" + std::to_string(parameters::maxNumFeatures) + "_" + pcommon.str() + "_" + pcliques.str();
+    std::string file_path = (fs::path(this->root_path_) / (full_graph_name + ".bin")).string();
     fp.open(file_path, std::ios::out | std::ios::binary);
     fp.write((char*)jsonbin.data(), jsonbin.size());
 
+    //add to the file_path
+    if (std::find(_graph_names.begin(), _graph_names.end(), full_graph_name) == _graph_names.end()) {
+        _graph_names.push_back(full_graph_name);
+    }
+    return true;
 }
-bool fileManager::graphManager::writeLabels(const std::vector<int>& labels) {
-    if (this->iobuffer_.contains("label"))
-        this->iobuffer_.erase("label");
-    this->iobuffer_["label"] = labels;
+bool fileManager::graphManager::writeLabels(const std::vector<int>& labels, json& json_buffer) {
+    if (json_buffer.contains("label"))
+        json_buffer.erase("label");
+    json_buffer["label"] = labels;
+    return true;
 }
 
-bool fileManager::graphManager::writeEdges(const std::vector<int>& edges) {
-    if (this->iobuffer_.contains("edge"))
-        this->iobuffer_.erase("edge");
-    this->iobuffer_["edge"] = edges;
+bool fileManager::graphManager::writeEdges(const std::vector<int>& edges, json& json_buffer) {
+    if (json_buffer.contains("edge"))
+        json_buffer.erase("edge");
+    json_buffer["edge"] = edges;
+    return true;
 }
-bool fileManager::graphManager::writeWeights(const std::vector<int>& weights) {
-    if (this->iobuffer_.contains("weight"))
-        this->iobuffer_.erase("weight");
-    this->iobuffer_["weight"] = weights;
+bool fileManager::graphManager::writeWeights(const std::vector<int>& weights, json& json_buffer) {
+    if (json_buffer.contains("weight"))
+        json_buffer.erase("weight");
+    json_buffer["weight"] = weights;
+    return true;
 }
-bool fileManager::graphManager::readGraph(std::string path) {
-    std::ifstream fp(path, std::ios::binary);
+
+//name should be the image name
+bool fileManager::graphManager::Read(igraph_t* mygraph, std::string name) {
+    //search on the folder
+    json inputBuffer;
+
+    //in current graphs folder can't find the corresponding graph with given name
+    if (std::find(this->_graph_names.begin(), this->_graph_names.end(), name)==this->_graph_names.end()) {
+        //corresponding graph Not found return false signal
+        return false;
+    }
+    fs::path graph_path = fs::path(this->root_path_) / fs::path(name+ ".bin");
+
+    std::ifstream fp(graph_path.string(), std::ios::binary);
     std::vector<uint8_t> gBson(
         (std::istreambuf_iterator<char>(fp)),
         std::istreambuf_iterator<char>());
     //read to buffer
-    this->iobuffer_ = json::from_bson(gBson);
+    inputBuffer = json::from_msgpack(gBson);
 
     //check properties
-    if (!iobuffer_.contains("name")) {
-        std::cerr << "\ngraphManager.readGraph: missing graph name\n";
+    if (!inputBuffer.contains("name")) {
+        std::cerr << "\ngraphManager.readGraph: corrupted graph, missing graph name\n";
+        return false;
     }
 
-    if (!iobuffer_.contains("label") || !iobuffer_.contains("weight") || !iobuffer_.contains("edge")) {
-        std::cerr << "\ngraphManager.readGraph: missing graph's components.\n";
+    if (!inputBuffer.contains("n_vertices")) {
+        std::cerr << "\ngraphManager.readGraph: corrupted graph, missing graph name\n";
+        return false;
     }
+
+    if (!inputBuffer.contains("label") || !inputBuffer.contains("weight") || !inputBuffer.contains("edge")) {
+        std::cerr << "\ngraphManager.readGraph:corrupted graph, missing graph's components.\n";
+        return false;
+    }
+
+    //write to graph
+    //get edges
+    auto edges = inputBuffer["edge"].get<std::vector<double>>();
+    igraph_vector_t mygraph_edges;
+    igraph_vector_view(&mygraph_edges, edges.data(), edges.size());
+
+    //POSSIBLE isolated vertcies exists
+    igraph_create(mygraph, &mygraph_edges, inputBuffer["n_vertices"].get<int>(), IGRAPH_UNDIRECTED);
+    SETGAS(mygraph, "name", inputBuffer["name"].get<std::string>().c_str());
+    SETGAN(mygraph, "n_vertices", inputBuffer["n_vertices"].get<int>());
+
+    //set labels
+    auto labels = inputBuffer["label"].get<std::vector<double>>();
+    igraph_vector_t mygraph_labels;
+    igraph_vector_view(&mygraph_labels, labels.data(), labels.size());
+    SETVANV(mygraph, "label", &mygraph_labels);
+
+    //set weights
+    auto weights = inputBuffer["weight"].get<std::vector<double>>();
+    igraph_vector_t mygraph_weights;
+    igraph_vector_view(&mygraph_weights, weights.data(), weights.size());
+    SETEANV(mygraph, "weight", &mygraph_weights);
+    
+    return true;
 }
 
 /*

@@ -84,11 +84,14 @@ namespace kernel {
 	class recurRobustKel {
 	public:
 		recurRobustKel(int h_max, size_t n_labels); //h_max is the number of max iteration, n_labels is the length of dict
+		~recurRobustKel();
+		void robustKernelCom(int i, igraph_t& source_graph, scoreType& kernel_vals);
 		void robustKernelCom(int i, int j, scoreType &scores, vetIndType& inv1, vetIndType& inv2);
 		void robustKernelCom(int i, igraph_t& source_graph, scoreType& scores, vetIndType& inv1, vetIndType& inv2, bool useTFIDF = false);
 		void robustKernelCom(igraph_t& query_graph, igraph_t& source_graph, scoreType& kernel_vals, vetIndType& inv1, vetIndType& inv2, bool useTFIDF=false);
 		double robustKernelVal(std::vector<size_t>& vert1, std::vector<size_t>& vert2, igraph_t& graph_i, igraph_t& graph_j, int doc_ind = -1);
-		std::vector < std::vector<float>> robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int> &source_indexes);
+
+		std::vector < std::vector<float>> robustKernelCompWithQueryArray(std::vector<igraph_t>& database_graphs, std::vector<int>* source_indexes=nullptr);
 		void push_back(igraph_t newgraph);
 		void graphPrepro(igraph_t& graph);
 		std::vector<igraph_t>& getGraphs() { return this->graphs; };
